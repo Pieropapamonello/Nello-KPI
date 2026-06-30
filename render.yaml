@@ -1,0 +1,21 @@
+# Configurazione per Render - Web Service gratuito (bot in modalità webhook)
+# Il bot rileva RENDER_EXTERNAL_URL (fornito da Render) e parte in webhook.
+# In locale, senza quella variabile, parte in polling.
+services:
+  - type: web
+    name: nello-kpi-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false          # da inserire a mano nel pannello Render (segreto)
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false          # incolla qui il JSON del service account
+      - key: ADMIN_PASSWORD
+        sync: false          # password admin (segreta) da inserire nel pannello
+      - key: FIREBASE_API_KEY
+        value: AIzaSyCfhxHKn73vdmhX7PwGrb8U8A4_BxMWtzs
+      - key: WEBHOOK_SECRET
+        generateValue: true  # token segreto per validare le chiamate di Telegram

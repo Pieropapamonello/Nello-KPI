@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Nello KPI</title>
+
+<link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+<canvas id="confettiCanvas"></canvas>
+<div id="trailLayer" aria-hidden="true"></div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="top">
+      <div class="header">
+        <div class="avatar"><img id="avatarImg" src="nello_ok.png" alt="Nello"></div>
+        <div class="title">
+          <h1>Nello KPI</h1>
+          <p id="userLine">Guest</p>
+        </div>
+
+        <div class="right">
+          <div class="kpiMini">
+            <div class="label" id="miniLabel">KPI</div>
+            <div class="value" id="miniKpi">—</div>
+          </div>
+          <button class="pill primary" id="loginBtn" type="button">Login</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div><label>Anno</label><select id="yearSelect"></select></div>
+        <div><label>Mese</label><select id="monthSelect"></select></div>
+      </div>
+
+      <div class="navTabs">
+        <button id="tabInput" class="active" type="button">🧾 Inserimento</button>
+        <button id="tabStats" type="button">📈 Statistiche</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="viewInput">
+        <div id="sectionCanale" class="section">
+          <p class="sectionTitle">1) Canale</p>
+
+          <div class="choiceRow channelRow">
+            <button id="btnPhone" class="chanBtn phoneBtn" type="button" aria-pressed="false">
+              <span class="ico" aria-hidden="true">
+                <svg class="icoSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.31 1.7.57 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.09a2 2 0 0 1 2.11-.45c.8.26 1.64.45 2.5.57A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </span>
+              <span class="btnText">Telefono</span>
+            </button>
+
+            <button id="btnChat" class="chanBtn chatBtn" type="button" aria-pressed="false">
+              <span class="ico" aria-hidden="true">
+                <svg class="icoSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+                </svg>
+              </span>
+              <span class="btnText">Messaggistica</span>
+            </button>
+          </div>
+
+          <div id="inlineTargetWrap" class="inlineTargetWrap hidden" aria-hidden="true">
+            <label class="inlineTargetLabel" for="inlineTarget">Obiettivo</label>
+            <div class="inlineTargetControls">
+              <input id="inlineTarget" class="inlineTarget" type="number" min="0" max="100" step="0.1" value="86" inputmode="decimal" aria-label="Target percentuale">
+              <button id="inlineTargetOk" class="btnTiny" type="button" aria-label="Conferma target">OK</button>
+            </div>
+          </div>
+        </div>
+
+
+
+        <div class="section hidden" id="stepMode">
+          <p class="sectionTitle">3) Modalità</p>
+          <div class="choiceRow">
+            <button id="btnMonthly" type="button"><span class="ico">📅</span> Mensile</button>
+            <button id="btnWeekly" type="button"><span class="ico">🗓️</span> Settimanale</button>
+          </div>
+        </div>
+
+        <div class="section hidden" id="monthlySection">
+          <p class="sectionTitle">Dati mensili</p>
+          <div class="row3">
+            <div><label>Sì</label><input id="m_yes" type="number" min="0" step="1" value="0"></div>
+            <div><label>No</label><input id="m_no" type="number" min="0" step="1" value="0"></div>
+            <div><label>Ric</label><input id="m_rec" type="number" min="0" step="1" value="0"></div>
+          </div>
+          <div class="btnRow">
+            <button class="btnTiny" id="resetMonthlyBtn" type="button">🔄 Reset mese</button>
+            <button class="btnTiny" id="sumWeeksToMonthBtn" type="button">➕ Somma settimane → mese</button>
+          </div>
+        </div>
+
+        <div class="section hidden" id="weeklySection">
+          <p class="sectionTitle">Dati settimanali</p>
+
+          <div class="accordion" id="weeklyAccordion">
+            <div class="accHead" id="accHead">
+              <div><strong>Settimane (W1–W5)</strong><br><span>Tocca per aprire/chiudere</span></div>
+              <div id="accChevron">▾</div>
+            </div>
+            <div class="accBody">
+              <div class="weekRow">
+                <div class="weekBadge">W1</div>
+                <div><label>Sì</label><input id="w1_yes" type="number" min="0" step="1" value="0"></div>
+                <div><label>No</label><input id="w1_no" type="number" min="0" step="1" value="0"></div>
+                <div><label>Ric</label><input id="w1_rec" type="number" min="0" step="1" value="0"></div>
+
+              </div>
+              <div class="weekRow">
+                <div class="weekBadge">W2</div>
+                <div><label>Sì</label><input id="w2_yes" type="number" min="0" step="1" value="0"></div>
+                <div><label>No</label><input id="w2_no" type="number" min="0" step="1" value="0"></div>
+                <div><label>Ric</label><input id="w2_rec" type="number" min="0" step="1" value="0"></div>
+
+              </div>
+              <div class="weekRow">
+                <div class="weekBadge">W3</div>
+                <div><label>Sì</label><input id="w3_yes" type="number" min="0" step="1" value="0"></div>
+                <div><label>No</label><input id="w3_no" type="number" min="0" step="1" value="0"></div>
+                <div><label>Ric</label><input id="w3_rec" type="number" min="0" step="1" value="0"></div>
+
+              </div>
+              <div class="weekRow">
+                <div class="weekBadge">W4</div>
+                <div><label>Sì</label><input id="w4_yes" type="number" min="0" step="1" value="0"></div>
+                <div><label>No</label><input id="w4_no" type="number" min="0" step="1" value="0"></div>
+                <div><label>Ric</label><input id="w4_rec" type="number" min="0" step="1" value="0"></div>
+
+              </div>
+              <div class="weekRow" style="margin-bottom:0;">
+                <div class="weekBadge">W5</div>
+                <div><label>Sì</label><input id="w5_yes" type="number" min="0" step="1" value="0"></div>
+                <div><label>No</label><input id="w5_no" type="number" min="0" step="1" value="0"></div>
+                <div><label>Ric</label><input id="w5_rec" type="number" min="0" step="1" value="0"></div>
+
+              </div>
+
+              <div class="btnRow">
+                <button class="btnTiny" id="resetWeeksBtn" type="button">🔄 Reset settimane</button>
+                <button class="btnTiny" id="sumToMonthBtn" type="button">➕ Somma W → mese</button>
+              </div>
+
+              <div class="smallNote">Conversione reale: +1 Sì e −1 No nella settimana.</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn hidden" id="calcBtn" type="button">⚡ Calcola</button>
+
+        <div class="result hidden" id="resultBox">
+          <div class="resultHeader">
+            <strong>Risultato</strong>
+            <span id="resultMeta">—</span>
+            <span id="liveBadge" class="liveBadge hidden" aria-hidden="true">LIVE</span>
+          </div>
+          <div id="percent" class="percent">—</div>
+          <div id="message" class="message">—</div>
+
+          <div class="bar"><span id="barFill"></span></div>
+          <div class="bartext" id="barText">—</div>
+
+          <div class="kpis" id="kpis" style="display:none;"></div>
+
+          <div class="btnRow">
+            <button class="btn secondary" id="shareTextBtn" type="button">📤 Condividi testo</button>
+            <button class="btn secondary" id="shareImgBtn" type="button">📸 Condividi immagine</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewStats" class="hidden">
+        <div class="statCard">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+            <strong>Statistiche</strong>
+            <span style="color:#9aa1b5;font-size:12px;" id="statsUser">Guest</span>
+          </div>
+
+          <div class="section" style="margin-top:12px;">
+            <p class="sectionTitle">Filtro</p>
+            <div class="row2">
+              <div>
+                <label>Canale</label>
+                <select id="statsChannel">
+                  <option value="all">Entrambi</option>
+                  <option value="phone">Telefono</option>
+                  <option value="chat">Messaggistica</option>
+                </select>
+              </div>
+              <div>
+                <label>Anno</label>
+                <select id="statsYear"></select>
+              </div>
+            </div>
+            <div class="grid1" style="margin-top:10px;">
+              <button class="btn secondary" id="addHistoryBtn" type="button">➕ Aggiungi dati mesi precedenti</button>
+            </div>
+          </div>
+
+          <div id="statsGrid" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- HISTORY / BACKFILL MODAL -->
+<div class="modalOverlay" id="historyOverlay" style="display:none;">
+  <div class="modal">
+    <h2>Aggiungi mese</h2>
+    <p>Inserisci i dati di un mese precedente: puoi usare <b>Sì/No/Ric</b> oppure solo la <b>% finale</b>.</p>
+
+    <div class="section" style="padding:12px; margin:0; border-radius:18px;">
+      <p class="sectionTitle" style="margin-bottom:10px;">Dettagli</p>
+      <div class="row2">
+        <div>
+          <label>Anno</label>
+          <select id="histYear"></select>
+        </div>
+        <div>
+          <label>Mese</label>
+          <select id="histMonth"></select>
+        </div>
+      </div>
+
+      <div class="row2" style="margin-top:10px;">
+        <div>
+          <label>Canale</label>
+          <select id="histChannel">
+            <option value="phone">Telefono</option>
+            <option value="chat">Messaggistica</option>
+          </select>
+        </div>
+        <div>
+          <label>Target % (opzionale)</label>
+          <input id="histTarget" type="number" min="0" max="100" step="0.1" value="86" inputmode="decimal">
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label>Tipo dato</label>
+        <select id="histType">
+          <option value="monthly">Totale mese (Sì / No / Ric)</option>
+          <option value="weekly">Settimanale (W1–W5)</option>
+          <option value="percent">Solo percentuale finale</option>
+        </select>
+        <div style="color:#9aa1b5;font-size:12px;margin-top:6px;">
+          Puoi inserire il totale mensile oppure il dettaglio settimanale (verrà sommato automaticamente).
+        </div>
+      </div>
+
+      <div id="histCounts" class="row3" style="margin-top:10px;">
+        <div>
+          <label>Sì</label>
+          <input id="histYes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div>
+          <label>No</label>
+          <input id="histNo" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div>
+          <label>Ric</label>
+          <input id="histRec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+      </div>
+
+      <div id="histWeekly" class="hidden" style="margin-top:10px;">
+        <div class="weekHeader">
+          <div></div>
+          <div>Sì</div>
+          <div>No</div>
+          <div>Ric</div>
+        </div>
+
+        <div class="weekRow">
+          <div class="weekTag">W1</div>
+          <input id="histW1Yes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW1No" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW1Rec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div class="weekRow">
+          <div class="weekTag">W2</div>
+          <input id="histW2Yes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW2No" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW2Rec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div class="weekRow">
+          <div class="weekTag">W3</div>
+          <input id="histW3Yes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW3No" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW3Rec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div class="weekRow">
+          <div class="weekTag">W4</div>
+          <input id="histW4Yes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW4No" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW4Rec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+        <div class="weekRow">
+          <div class="weekTag">W5</div>
+          <input id="histW5Yes" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW5No" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+          <input id="histW5Rec" type="number" min="0" step="1" value="" placeholder="" inputmode="numeric">
+        </div>
+
+        <div style="color:#9aa1b5;font-size:12px;margin-top:8px;">
+          Il totale mensile viene calcolato sommando W1–W5.
+        </div>
+      </div>
+
+      <div id="histPercentWrap" class="hidden" style="margin-top:10px;">
+        <label>% finale</label>
+        <input id="histPercent" type="number" min="0" max="100" step="0.01" value="" placeholder="" inputmode="decimal">
+        <div style="color:#9aa1b5;font-size:12px;margin-top:6px;">
+          Se inserisci solo la %, nelle statistiche i conteggi saranno mostrati come “—”.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="grid2" style="margin-top:12px;">
+      <button class="btnTiny" id="histSave" type="button">Salva</button>
+      <button class="btnTiny" id="histCancel" type="button">Annulla</button>
+    </div>
+
+    <div class="error" id="histError" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modalOverlay" id="modalOverlay">
+  <div class="modal">
+    <h2>Login</h2>
+    <p>Accedi con social o email.</p>
+
+    <div class="grid1">
+      <button class="btnTiny" id="btnGoogle" type="button">Accedi con Google</button>
+    </div>
+
+    <hr class="sep" />
+
+    <div class="section" style="padding:12px; margin:0; border-radius:18px;">
+      <p class="sectionTitle" style="margin-bottom:10px;">Email</p>
+      <div>
+        <label>Email</label>
+        <input id="emailInput" type="email" placeholder="nome@email.it" autocomplete="email">
+      </div>
+      <div style="margin-top:10px;">
+        <label>Password</label>
+        <input id="passInput" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <div class="grid2">
+        <button class="btnTiny" id="btnEmailLogin" type="button">Entra</button>
+        <button class="btnTiny" id="btnEmailSignup" type="button">Registrati</button>
+      </div>
+
+      <div class="grid2" style="margin-top:10px;">
+        <button class="btnTiny" id="btnResetPass" type="button">Reset password</button>
+        <button class="btnTiny hidden" id="btnResendVerification" type="button">Reinvia conferma</button>
+        <button class="btnTiny" id="btnLogout" type="button">Logout</button>
+      </div>
+    </div>
+
+    <div class="grid1" style="margin-top:12px;">
+      <button class="btnTiny" id="btnCloseModal" type="button">Chiudi</button>
+    </div>
+
+    <div class="error" id="loginError"></div>
+  </div>
+</div>
+
+<div id="welcomeToast" class="welcome hidden" aria-live="polite"><span id="welcomeName"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<script src="app.js"></script>
+</body>
+</html>
