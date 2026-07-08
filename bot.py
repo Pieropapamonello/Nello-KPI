@@ -81,7 +81,7 @@ WEB_FILES = {
 }
 
 # stati delle conversazioni (input testuali)
-LOGIN_EMAIL, LOGIN_PASSWORD, ADMIN_PW = range(3)
+LOGIN_EMAIL, LOGIN_PASSWORD, ADMIN_PW, INPUT_NUM = range(4)
 
 
 # ----------------------------------------------------------------- firebase --
@@ -273,26 +273,47 @@ def save_data(uid: str, data: dict):
 # =============================================================================
 #  TESTI
 # =============================================================================
+def get_period(context):
+    """Periodo selezionato (anno, mese) dalla sessione; default = mese corrente."""
+    return (
+        context.user_data.get("year") or now_year(),
+        context.user_data.get("month") or now_month(),
+    )
+
+
+def channel_kpi(ch):
+    """Ritorna (pct|None, is_override). Tiene conto del 'solo %' (overridePercent)."""
+    yes, no, rec = sum_channel_month(ch)
+    den = yes + no
+    ov = ch.get("overridePercent")
+    if ov is not None and den <= 0:
+        return float(ov) * 100, True
+    r = ratio(yes, no, rec)
+    if r is None and ov is not None:
+        return float(ov) * 100, True
+    return (r * 100 if r is not None else None), False
+
+
 def fmt_channel(name, ch):
     yes, no, rec = sum_channel_month(ch)
-    r = ratio(yes, no, rec)
+    pct, isov = channel_kpi(ch)
     target = float(ch.get("target", 86) or 86)
     hint = ""
-    if r is None:
+    if pct is None:
         pct_txt = "—"
         flag = ""
     else:
-        pct = r * 100
-        pct_txt = f"{pct:.2f}%"
+        pct_txt = f"{pct:.2f}%" + (" (solo %)" if isov else "")
         if pct >= target:
             flag = "✅"
         else:
             flag = "⚠️"
-            ny = needed_yes(yes, no, rec, target / 100)
-            if ny is None:
-                hint = "\n  ⛔ target irraggiungibile così"
-            elif ny > 0:
-                hint = f"\n  👉 ti mancano *{ny}* sì per il target"
+            if not isov:
+                ny = needed_yes(yes, no, rec, target / 100)
+                if ny is None:
+                    hint = "\n  ⛔ target irraggiungibile così"
+                elif ny > 0:
+                    hint = f"\n  👉 ti mancano *{ny}* sì per il target"
     return (
         f"*{name}* {flag}\n"
         f"  KPI: {pct_txt}  (target {target:g}%)\n"
@@ -300,9 +321,10 @@ def fmt_channel(name, ch):
     )
 
 
-def build_stato_text(uid: str):
+def build_stato_text(uid, year=None, month=None):
     data = load_data(uid)
-    y, m = now_year(), now_month()
+    y = year or now_year()
+    m = month or now_month()
     mobj = ensure_path(data, y, m)
     title = f"📊 *KPI {MONTHS_IT[m]} {y}*\n\n"
     body = "\n\n".join(
@@ -311,47 +333,82 @@ def build_stato_text(uid: str):
     return title + body
 
 
-def build_anno_text(uid: str):
-    """Statistiche dell'anno corrente: KPI medio per canale + dettaglio mesi."""
+def build_channel_text(uid, ch, y, m):
+    """Vista dettagliata di un canale nel periodo selezionato."""
     data = load_data(uid)
-    y = now_year()
-    months = (data.get("years", {}).get(y, {}) or {}).get("months", {}) or {}
-    out = [f"📅 *Statistiche {y}*"]
-    for ch in ("phone", "chat"):
+    c = ensure_path(data, y, m)["channels"][ch]
+    yes, no, rec = sum_channel_month(c)
+    pct, isov = channel_kpi(c)
+    target = float(c.get("target", 86) or 86)
+    mode = "Settimanale 🗓️" if c.get("mode") == "weekly" else "Mensile 📅"
+    out = [
+        f"*{CHANNELS[ch]}* — {MONTHS_IT[m]} {y}",
+        f"Modalità: {mode}",
+        f"Target: {target:g}%",
+    ]
+    if pct is None:
+        out.append("KPI: — (nessun dato)")
+    else:
+        flag = "✅" if pct >= target else "⚠️"
+        out.append(f"KPI: *{pct:.2f}%* {flag}" + (" (solo %)" if isov else ""))
+    out.append(f"Sì {yes} · No {no} · Ric {rec}")
+    if pct is not None and not isov and pct < target:
+        ny = needed_yes(yes, no, rec, target / 100)
+        if ny:
+            out.append(f"👉 ti mancano *{ny}* sì per il target")
+    return "\n".join(out)
+
+
+def build_stats_text(uid, chfilter, year):
+    """Statistiche di un anno: media KPI per canale + dettaglio mesi."""
+    data = load_data(uid)
+    months = (data.get("years", {}).get(year, {}) or {}).get("months", {}) or {}
+    chans = ("phone", "chat") if chfilter == "all" else (chfilter,)
+    out = [f"📈 *Statistiche {year}*"]
+    for ch in chans:
         out.append(f"\n*{CHANNELS[ch]}*")
-        ratios = []
-        righe = []
+        vals, righe = [], []
         for m in sorted(months.keys()):
             chobj = (months[m].get("channels", {}) or {}).get(ch)
             if not chobj:
                 continue
-            yes, no, rec = sum_channel_month(chobj)
-            r = ratio(yes, no, rec)
-            if r is None:
+            pct, _ = channel_kpi(chobj)
+            if pct is None:
                 continue
-            ratios.append(r)
-            righe.append(f"  {MONTHS_IT[m]}: {r*100:.2f}%")
-        if ratios:
-            media = sum(ratios) / len(ratios) * 100
-            out.append(f"  Media anno: *{media:.2f}%* ({len(ratios)} mesi)")
+            vals.append(pct)
+            righe.append(f"  {MONTHS_IT[m]}: {pct:.2f}%")
+        if vals:
+            out.append(f"  Media: *{sum(vals)/len(vals):.2f}%* ({len(vals)} mesi)")
             out.extend(righe)
         else:
             out.append("  _nessun dato_")
     return "\n".join(out)
 
 
-def build_quickadd_text(uid: str, ch: str, typ: str):
+def build_quickadd_text(uid, ch, typ, y, m):
     data = load_data(uid)
-    mobj = ensure_path(data, now_year(), now_month())
-    chobj = mobj["channels"][ch]
+    chobj = ensure_path(data, y, m)["channels"][ch]
     yes, no, rec = sum_channel_month(chobj)
     cur = {"yes": yes, "no": no, "rec": rec}[typ]
-    r = ratio(yes, no, rec)
-    pct = f"{r*100:.2f}%" if r is not None else "—"
+    pct, _ = channel_kpi(chobj)
+    pcttxt = f"{pct:.2f}%" if pct is not None else "—"
     return (
-        f"➕ *{CHANNELS[ch]} · {TYPE_NAMES[typ]}*\n\n"
+        f"➕ *{CHANNELS[ch]} · {TYPE_NAMES[typ]}* — {MONTHS_IT[m]} {y}\n\n"
         f"Valore attuale: *{cur}*\n"
-        f"KPI del mese: {pct}\n\n"
+        f"KPI: {pcttxt}\n\n"
+        f"Tocca i pulsanti per aggiungere o togliere:"
+    )
+
+
+def build_week_text(uid, ch, i, typ, y, m):
+    data = load_data(uid)
+    chobj = ensure_path(data, y, m)["channels"][ch]
+    wk = chobj.get("weeks", [{} for _ in range(5)])
+    w = wk[i] if i < len(wk) else {"yes": 0, "no": 0, "rec": 0}
+    cur = int(w.get(typ, 0) or 0)
+    return (
+        f"🗓️ *{CHANNELS[ch]} · W{i+1} · {TYPE_NAMES[typ]}* — {MONTHS_IT[m]} {y}\n\n"
+        f"Valore attuale: *{cur}*\n\n"
         f"Tocca i pulsanti per aggiungere o togliere:"
     )
 
@@ -393,28 +450,29 @@ def welcome_markup():
     )
 
 
+def back_menu_row():
+    return [InlineKeyboardButton("🏠 Menu", callback_data="menu")]
+
+
 def main_menu(tg_id: int):
     link = get_link(tg_id) or {}
     notify_on = link.get("notify", True)
     kb = [
         [
             InlineKeyboardButton("📊 Stato KPI", callback_data="stato"),
-            InlineKeyboardButton("📅 Anno", callback_data="anno"),
+            InlineKeyboardButton("📈 Statistiche", callback_data="stats"),
+        ],
+        [InlineKeyboardButton("📅 Periodo (anno/mese)", callback_data="period")],
+        [
+            InlineKeyboardButton("📞 Telefono", callback_data="ch:phone"),
+            InlineKeyboardButton("💬 Chat", callback_data="ch:chat"),
         ],
         [
-            InlineKeyboardButton("➕ Telefono", callback_data="addmenu:phone"),
-            InlineKeyboardButton("➕ Chat", callback_data="addmenu:chat"),
-        ],
-        [
-            InlineKeyboardButton("🎯 Target tel.", callback_data="tgtmenu:phone"),
-            InlineKeyboardButton("🎯 Target chat", callback_data="tgtmenu:chat"),
-        ],
-        [
+            InlineKeyboardButton("📥 Esporta dati", callback_data="export"),
             InlineKeyboardButton(
-                "🔕 Disattiva avvisi" if notify_on else "🔔 Attiva avvisi",
+                "🔕 Avvisi: ON" if notify_on else "🔔 Avvisi: OFF",
                 callback_data="notif:" + ("off" if notify_on else "on"),
             ),
-            InlineKeyboardButton("📥 Esporta dati", callback_data="export"),
         ],
     ]
     if is_admin(tg_id):
@@ -425,48 +483,164 @@ def main_menu(tg_id: int):
     return InlineKeyboardMarkup(kb)
 
 
-def back_menu_row():
-    return [InlineKeyboardButton("🏠 Menu", callback_data="menu")]
+def channel_menu(ch, chobj):
+    """Menù di un canale: cambia in base alla modalità (mensile/settimanale)."""
+    mode = chobj.get("mode", "monthly")
+    kb = []
+    if mode == "weekly":
+        kb.append([InlineKeyboardButton("🗓️ Settimane (W1–W5)", callback_data=f"weeks:{ch}")])
+        kb.append([InlineKeyboardButton("➕ Somma settimane → mese", callback_data=f"wsum:{ch}")])
+        kb.append([
+            InlineKeyboardButton("🔄 Reset settimane", callback_data=f"wreset:{ch}"),
+            InlineKeyboardButton("📅 Modalità mensile", callback_data=f"mode:{ch}"),
+        ])
+    else:
+        kb.append([
+            InlineKeyboardButton("➕ Sì", callback_data=f"addt:{ch}:yes"),
+            InlineKeyboardButton("➕ No", callback_data=f"addt:{ch}:no"),
+            InlineKeyboardButton("➕ Ric", callback_data=f"addt:{ch}:rec"),
+        ])
+        kb.append([
+            InlineKeyboardButton("✏️ Imposta esatti", callback_data=f"setx:{ch}"),
+            InlineKeyboardButton("🔄 Reset mese", callback_data=f"creset:{ch}"),
+        ])
+        kb.append([InlineKeyboardButton("🗓️ Modalità settimanale", callback_data=f"mode:{ch}")])
+    kb.append([
+        InlineKeyboardButton("🎯 Target", callback_data=f"tgtmenu:{ch}"),
+        InlineKeyboardButton("📊 Solo %", callback_data=f"pct:{ch}"),
+    ])
+    kb.append([InlineKeyboardButton("🏠 Menu", callback_data="menu")])
+    return InlineKeyboardMarkup(kb)
 
 
-def addtype_markup(ch: str):
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("✅ Sì", callback_data=f"addt:{ch}:yes"),
-                InlineKeyboardButton("❌ No", callback_data=f"addt:{ch}:no"),
-                InlineKeyboardButton("♻️ Rec", callback_data=f"addt:{ch}:rec"),
-            ],
-            back_menu_row(),
-        ]
-    )
-
-
-def quickadd_markup(ch: str, typ: str):
+def quickadd_markup(ch, typ, back):
     def inc(n, label):
         return InlineKeyboardButton(label, callback_data=f"inc:{ch}:{typ}:{n}")
+    return InlineKeyboardMarkup([
+        [inc(1, "➕1"), inc(5, "➕5"), inc(10, "➕10")],
+        [inc(20, "➕20"), inc(50, "➕50"), inc(100, "➕100")],
+        [inc(-1, "➖1"), inc(-5, "➖5"), inc(-10, "➖10")],
+        [InlineKeyboardButton("⬅️ Indietro", callback_data=back),
+         InlineKeyboardButton("🏠 Menu", callback_data="menu")],
+    ])
 
-    return InlineKeyboardMarkup(
+
+def week_list_markup(chobj, ch):
+    wk = chobj.get("weeks", [])
+    rows = []
+    for i in range(5):
+        w = wk[i] if i < len(wk) else {}
+        y_ = int(w.get("yes", 0) or 0)
+        n_ = int(w.get("no", 0) or 0)
+        r_ = int(w.get("rec", 0) or 0)
+        rows.append([InlineKeyboardButton(
+            f"W{i+1}:  Sì {y_} · No {n_} · Ric {r_}", callback_data=f"wsel:{ch}:{i}")])
+    rows.append([
+        InlineKeyboardButton("⬅️ Canale", callback_data=f"ch:{ch}"),
+        InlineKeyboardButton("🏠 Menu", callback_data="menu"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+def week_type_markup(ch, i):
+    return InlineKeyboardMarkup([
         [
-            [inc(1, "➕1"), inc(5, "➕5"), inc(10, "➕10")],
-            [inc(20, "➕20"), inc(50, "➕50"), inc(100, "➕100")],
-            [inc(-1, "➖1"), inc(-5, "➖5"), inc(-10, "➖10")],
-            [
-                InlineKeyboardButton("⬅️ Indietro", callback_data=f"addmenu:{ch}"),
-                InlineKeyboardButton("🏠 Menu", callback_data="menu"),
-            ],
-        ]
-    )
+            InlineKeyboardButton("➕ Sì", callback_data=f"wt:{ch}:{i}:yes"),
+            InlineKeyboardButton("➕ No", callback_data=f"wt:{ch}:{i}:no"),
+            InlineKeyboardButton("➕ Ric", callback_data=f"wt:{ch}:{i}:rec"),
+        ],
+        [
+            InlineKeyboardButton("⬅️ Settimane", callback_data=f"weeks:{ch}"),
+            InlineKeyboardButton("🏠 Menu", callback_data="menu"),
+        ],
+    ])
 
 
-def target_markup(ch: str):
-    vals = [80, 82, 85, 86, 88, 90, 92, 95]
+def week_quickadd_markup(ch, i, typ):
+    def inc(n, label):
+        return InlineKeyboardButton(label, callback_data=f"winc:{ch}:{i}:{typ}:{n}")
+    return InlineKeyboardMarkup([
+        [inc(1, "➕1"), inc(5, "➕5"), inc(10, "➕10")],
+        [inc(-1, "➖1"), inc(-5, "➖5"), inc(-10, "➖10")],
+        [InlineKeyboardButton("⬅️ Indietro", callback_data=f"wsel:{ch}:{i}"),
+         InlineKeyboardButton("🏠 Menu", callback_data="menu")],
+    ])
+
+
+def target_markup(ch):
+    vals = [75, 80, 82, 85, 86, 88, 90, 92, 95, 100]
     rows, row = [], []
     for v in vals:
         row.append(InlineKeyboardButton(f"{v}%", callback_data=f"tgtset:{ch}:{v}"))
         if len(row) == 3:
-            rows.append(row)
-            row = []
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton("✏️ Altro valore", callback_data=f"tgtx:{ch}")])
+    rows.append([InlineKeyboardButton("⬅️ Canale", callback_data=f"ch:{ch}")])
+    return InlineKeyboardMarkup(rows)
+
+
+def pct_markup(ch):
+    vals = [70, 75, 80, 85, 86, 88, 90, 92, 95, 100]
+    rows, row = [], []
+    for v in vals:
+        row.append(InlineKeyboardButton(f"{v}%", callback_data=f"pctset:{ch}:{v}"))
+        if len(row) == 3:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([
+        InlineKeyboardButton("✏️ Altro", callback_data=f"pctx:{ch}"),
+        InlineKeyboardButton("❌ Rimuovi %", callback_data=f"pctdel:{ch}"),
+    ])
+    rows.append([InlineKeyboardButton("⬅️ Canale", callback_data=f"ch:{ch}")])
+    return InlineKeyboardMarkup(rows)
+
+
+def period_year_markup(uid):
+    years = set((load_data(uid).get("years", {}) or {}).keys())
+    years.add(now_year())
+    yrs = sorted(years)
+    rows, row = [], []
+    for y in yrs:
+        row.append(InlineKeyboardButton(y, callback_data=f"py:{y}"))
+        if len(row) == 3:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append(back_menu_row())
+    return InlineKeyboardMarkup(rows)
+
+
+def period_month_markup():
+    rows, row = [], []
+    for mm in sorted(MONTHS_IT.keys()):
+        row.append(InlineKeyboardButton(MONTHS_IT[mm][:3], callback_data=f"pm:{mm}"))
+        if len(row) == 4:
+            rows.append(row); row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton("⬅️ Anno", callback_data="period")])
+    return InlineKeyboardMarkup(rows)
+
+
+def stats_menu(uid, chfilter, year):
+    def lbl(txt, active):
+        return ("• " + txt) if active else txt
+    years = set((load_data(uid).get("years", {}) or {}).keys())
+    years.add(now_year())
+    yrs = sorted(years)
+    rows = [[
+        InlineKeyboardButton(lbl("Entrambi", chfilter == "all"), callback_data=f"statf:all:{year}"),
+        InlineKeyboardButton(lbl("📞", chfilter == "phone"), callback_data=f"statf:phone:{year}"),
+        InlineKeyboardButton(lbl("💬", chfilter == "chat"), callback_data=f"statf:chat:{year}"),
+    ]]
+    row = []
+    for y in yrs:
+        row.append(InlineKeyboardButton(lbl(y, y == year), callback_data=f"statf:{chfilter}:{y}"))
+        if len(row) == 3:
+            rows.append(row); row = []
     if row:
         rows.append(row)
     rows.append(back_menu_row())
@@ -572,65 +746,68 @@ async def admin_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 #  ROUTER DEI PULSANTI
 # =============================================================================
+def channel_screen(uid, ch, y, m):
+    """Testo + tastiera della vista di un canale nel periodo selezionato."""
+    chobj = ensure_path(load_data(uid), y, m)["channels"][ch]
+    return build_channel_text(uid, ch, y, m), channel_menu(ch, chobj)
+
+
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     tg_id = q.from_user.id
     data = q.data
 
-    # --- azioni che NON richiedono login ---
     if data == "login":
         if get_link(tg_id):
-            await q.edit_message_text(
-                "Sei già connesso.", reply_markup=main_menu(tg_id)
-            )
+            await q.edit_message_text("Sei già connesso.", reply_markup=main_menu(tg_id))
             return ConversationHandler.END
         await q.edit_message_text("📧 Scrivi la tua *email*:", parse_mode="Markdown")
         return LOGIN_EMAIL
 
-    if data == "menu" or data == "home":
+    if data in ("menu", "home"):
+        context.user_data.pop("awaiting", None)
         text, markup = start_screen(tg_id)
         await q.edit_message_text(text, reply_markup=markup, parse_mode="Markdown")
         return ConversationHandler.END
 
-    # --- da qui serve essere loggati ---
     link = get_link(tg_id)
     if not link:
         text, markup = start_screen(tg_id)
         await q.edit_message_text(text, reply_markup=markup, parse_mode="Markdown")
         return ConversationHandler.END
     uid = link["uid"]
+    y, m = get_period(context)
 
+    # ---- viste generali ----
     if data == "stato":
-        await q.edit_message_text(
-            build_stato_text(uid), parse_mode="Markdown", reply_markup=main_menu(tg_id)
-        )
+        await q.edit_message_text(build_stato_text(uid, y, m), parse_mode="Markdown",
+                                  reply_markup=main_menu(tg_id))
         return ConversationHandler.END
 
-    if data == "anno":
-        await q.edit_message_text(
-            build_anno_text(uid), parse_mode="Markdown", reply_markup=main_menu(tg_id)
-        )
+    if data == "stats":
+        await q.edit_message_text(build_stats_text(uid, "all", y), parse_mode="Markdown",
+                                  reply_markup=stats_menu(uid, "all", y))
+        return ConversationHandler.END
+
+    if data.startswith("statf:"):
+        _, chf, yr = data.split(":")
+        await q.edit_message_text(build_stats_text(uid, chf, yr), parse_mode="Markdown",
+                                  reply_markup=stats_menu(uid, chf, yr))
         return ConversationHandler.END
 
     if data == "logout":
         remove_link(tg_id)
-        await q.edit_message_text(
-            "👋 Disconnesso.", reply_markup=welcome_markup()
-        )
+        await q.edit_message_text("👋 Disconnesso.", reply_markup=welcome_markup())
         return ConversationHandler.END
 
     if data == "export":
         full = load_data(uid)
         blob = json.dumps(full, ensure_ascii=False, indent=2).encode("utf-8")
-        fname = f"nello_kpi_{link.get('email', 'backup').split('@')[0]}_{now_year()}-{now_month()}.json"
-        bio = BytesIO(blob)
-        bio.name = fname
-        await context.bot.send_document(
-            tg_id,
-            document=InputFile(bio, filename=fname),
-            caption="📥 Backup completo dei tuoi dati KPI (JSON).",
-        )
+        fname = f"nello_kpi_{link.get('email','backup').split('@')[0]}_{y}-{m}.json"
+        bio = BytesIO(blob); bio.name = fname
+        await context.bot.send_document(tg_id, document=InputFile(bio, filename=fname),
+                                        caption="📥 Backup completo dei tuoi dati KPI (JSON).")
         await q.answer("Backup inviato!")
         return ConversationHandler.END
 
@@ -638,85 +815,273 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         on = data.endswith("on")
         link_ref(tg_id).set({"notify": on}, merge=True)
         nota = "🔔 Avvisi settimanali attivati." if on else "🔕 Avvisi disattivati."
-        await q.edit_message_text(
-            nota + "\n\n" + start_screen(tg_id)[0],
-            reply_markup=main_menu(tg_id),
-            parse_mode="Markdown",
-        )
+        await q.edit_message_text(nota + "\n\n" + start_screen(tg_id)[0],
+                                  reply_markup=main_menu(tg_id), parse_mode="Markdown")
         return ConversationHandler.END
 
     if data == "admin":
         if not ADMIN_PASSWORD:
             await q.answer("Admin non configurato sul server.", show_alert=True)
             return ConversationHandler.END
-        await q.edit_message_text(
-            "🛡️ Scrivi la *password admin*:\n_(verrà cancellata subito)_",
-            parse_mode="Markdown",
-        )
+        await q.edit_message_text("🛡️ Scrivi la *password admin*:\n_(verrà cancellata subito)_",
+                                  parse_mode="Markdown")
         return ADMIN_PW
 
     if data == "utenti":
         if not is_admin(tg_id):
             await q.answer("Solo admin.", show_alert=True)
             return ConversationHandler.END
-        testo = build_utenti_text()
-        await q.edit_message_text(
-            testo[:3900], parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([back_menu_row()]),
-        )
+        await q.edit_message_text(build_utenti_text()[:3900], parse_mode="Markdown",
+                                  reply_markup=InlineKeyboardMarkup([back_menu_row()]))
         return ConversationHandler.END
 
-    if data.startswith("addmenu:"):
+    # ---- periodo (anno/mese) ----
+    if data == "period":
+        await q.edit_message_text(f"📅 Periodo attuale: *{MONTHS_IT[m]} {y}*\n\nScegli l'anno:",
+                                  parse_mode="Markdown", reply_markup=period_year_markup(uid))
+        return ConversationHandler.END
+
+    if data.startswith("py:"):
+        context.user_data["year"] = data.split(":", 1)[1]
+        await q.edit_message_text(f"📅 Anno *{context.user_data['year']}* — scegli il mese:",
+                                  parse_mode="Markdown", reply_markup=period_month_markup())
+        return ConversationHandler.END
+
+    if data.startswith("pm:"):
+        context.user_data["month"] = data.split(":", 1)[1]
+        y, m = get_period(context)
+        await q.edit_message_text(f"✅ Periodo: *{MONTHS_IT[m]} {y}*\n\n" + build_stato_text(uid, y, m),
+                                  parse_mode="Markdown", reply_markup=main_menu(tg_id))
+        return ConversationHandler.END
+
+    # ---- canale ----
+    if data.startswith("ch:"):
         ch = data.split(":", 1)[1]
-        await q.edit_message_text(
-            f"➕ *{CHANNELS[ch]}* – cosa vuoi conteggiare?",
-            parse_mode="Markdown", reply_markup=addtype_markup(ch),
-        )
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
         return ConversationHandler.END
 
     if data.startswith("addt:"):
         _, ch, typ = data.split(":")
-        await q.edit_message_text(
-            build_quickadd_text(uid, ch, typ),
-            parse_mode="Markdown", reply_markup=quickadd_markup(ch, typ),
-        )
+        await q.edit_message_text(build_quickadd_text(uid, ch, typ, y, m), parse_mode="Markdown",
+                                  reply_markup=quickadd_markup(ch, typ, f"ch:{ch}"))
         return ConversationHandler.END
 
     if data.startswith("inc:"):
         _, ch, typ, delta = data.split(":")
-        data_obj = load_data(uid)
-        mobj = ensure_path(data_obj, now_year(), now_month())
-        chobj = mobj["channels"][ch]
-        chobj.setdefault("monthly", {"yes": 0, "no": 0, "rec": 0})
-        chobj["monthly"][typ] = max(0, int(chobj["monthly"].get(typ, 0)) + int(delta))
-        save_data(uid, data_obj)
-        await q.edit_message_text(
-            build_quickadd_text(uid, ch, typ),
-            parse_mode="Markdown", reply_markup=quickadd_markup(ch, typ),
-        )
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        c["mode"] = "monthly"; c.setdefault("monthly", {"yes": 0, "no": 0, "rec": 0})
+        c["monthly"][typ] = max(0, int(c["monthly"].get(typ, 0)) + int(delta))
+        save_data(uid, d)
+        await q.edit_message_text(build_quickadd_text(uid, ch, typ, y, m), parse_mode="Markdown",
+                                  reply_markup=quickadd_markup(ch, typ, f"ch:{ch}"))
         return ConversationHandler.END
 
+    if data.startswith("setx:"):
+        ch = data.split(":", 1)[1]
+        context.user_data["awaiting"] = {"kind": "counts", "ch": ch}
+        await q.edit_message_text(
+            f"✏️ *{CHANNELS[ch]}* — scrivi i 3 valori separati da spazio:\n"
+            f"*Sì No Ric* (es. `80 10 2`)", parse_mode="Markdown")
+        return INPUT_NUM
+
+    if data.startswith("creset:"):
+        ch = data.split(":", 1)[1]
+        await q.edit_message_text(
+            f"🔄 Azzerare i dati di *{CHANNELS[ch]}* per {MONTHS_IT[m]} {y}?",
+            parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Sì, azzera", callback_data=f"cresetok:{ch}"),
+                InlineKeyboardButton("❌ No", callback_data=f"ch:{ch}")]]))
+        return ConversationHandler.END
+
+    if data.startswith("cresetok:"):
+        ch = data.split(":", 1)[1]
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        c["monthly"] = {"yes": 0, "no": 0, "rec": 0}
+        c["weeks"] = [{"yes": 0, "no": 0, "rec": 0} for _ in range(5)]
+        c["overridePercent"] = None
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text("🔄 Azzerato.\n\n" + text, parse_mode="Markdown", reply_markup=markup)
+        return ConversationHandler.END
+
+    if data.startswith("mode:"):
+        ch = data.split(":", 1)[1]
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        c["mode"] = "weekly" if c.get("mode") != "weekly" else "monthly"
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text(text, parse_mode="Markdown", reply_markup=markup)
+        return ConversationHandler.END
+
+    # ---- settimane ----
+    if data.startswith("weeks:"):
+        ch = data.split(":", 1)[1]
+        c = ensure_path(load_data(uid), y, m)["channels"][ch]
+        await q.edit_message_text(f"🗓️ *{CHANNELS[ch]}* — settimane ({MONTHS_IT[m]} {y})\nTocca una settimana:",
+                                  parse_mode="Markdown", reply_markup=week_list_markup(c, ch))
+        return ConversationHandler.END
+
+    if data.startswith("wsel:"):
+        _, ch, i = data.split(":"); i = int(i)
+        await q.edit_message_text(f"🗓️ *{CHANNELS[ch]} · W{i+1}* — cosa conteggiare?",
+                                  parse_mode="Markdown", reply_markup=week_type_markup(ch, i))
+        return ConversationHandler.END
+
+    if data.startswith("wt:"):
+        _, ch, i, typ = data.split(":"); i = int(i)
+        await q.edit_message_text(build_week_text(uid, ch, i, typ, y, m), parse_mode="Markdown",
+                                  reply_markup=week_quickadd_markup(ch, i, typ))
+        return ConversationHandler.END
+
+    if data.startswith("winc:"):
+        _, ch, i, typ, delta = data.split(":"); i = int(i)
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]; c["mode"] = "weekly"
+        wk = c.setdefault("weeks", [{"yes": 0, "no": 0, "rec": 0} for _ in range(5)])
+        while len(wk) < 5:
+            wk.append({"yes": 0, "no": 0, "rec": 0})
+        wk[i][typ] = max(0, int(wk[i].get(typ, 0) or 0) + int(delta))
+        save_data(uid, d)
+        await q.edit_message_text(build_week_text(uid, ch, i, typ, y, m), parse_mode="Markdown",
+                                  reply_markup=week_quickadd_markup(ch, i, typ))
+        return ConversationHandler.END
+
+    if data.startswith("wsum:"):
+        ch = data.split(":", 1)[1]
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        yes, no, rec = sum_channel_month({"mode": "weekly", "weeks": c.get("weeks", [])})
+        c["mode"] = "monthly"; c["monthly"] = {"yes": yes, "no": no, "rec": rec}
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text("➕ Settimane sommate nel mese.\n\n" + text, parse_mode="Markdown",
+                                  reply_markup=markup)
+        return ConversationHandler.END
+
+    if data.startswith("wreset:"):
+        ch = data.split(":", 1)[1]
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        c["weeks"] = [{"yes": 0, "no": 0, "rec": 0} for _ in range(5)]
+        save_data(uid, d)
+        cc = ensure_path(load_data(uid), y, m)["channels"][ch]
+        await q.edit_message_text("🔄 Settimane azzerate.", reply_markup=week_list_markup(cc, ch))
+        return ConversationHandler.END
+
+    # ---- target ----
     if data.startswith("tgtmenu:"):
         ch = data.split(":", 1)[1]
-        cur = ensure_path(load_data(uid), now_year(), now_month())["channels"][ch].get("target", 86)
-        await q.edit_message_text(
-            f"🎯 *Target {CHANNELS[ch]}*\nAttuale: {float(cur):g}%\n\nScegli il nuovo target:",
-            parse_mode="Markdown", reply_markup=target_markup(ch),
-        )
+        cur = ensure_path(load_data(uid), y, m)["channels"][ch].get("target", 86)
+        await q.edit_message_text(f"🎯 *Target {CHANNELS[ch]}*\nAttuale: {float(cur):g}%\n\nScegli:",
+                                  parse_mode="Markdown", reply_markup=target_markup(ch))
         return ConversationHandler.END
 
     if data.startswith("tgtset:"):
         _, ch, val = data.split(":")
-        data_obj = load_data(uid)
-        mobj = ensure_path(data_obj, now_year(), now_month())
-        mobj["channels"][ch]["target"] = float(val)
-        save_data(uid, data_obj)
-        await q.edit_message_text(
-            f"🎯 Target {CHANNELS[ch]} = {val}%\n\n" + build_stato_text(uid),
-            parse_mode="Markdown", reply_markup=main_menu(tg_id),
-        )
+        d = load_data(uid); ensure_path(d, y, m)["channels"][ch]["target"] = float(val)
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text(f"🎯 Target = {val}%\n\n" + text, parse_mode="Markdown",
+                                  reply_markup=markup)
         return ConversationHandler.END
 
+    if data.startswith("tgtx:"):
+        ch = data.split(":", 1)[1]
+        context.user_data["awaiting"] = {"kind": "target", "ch": ch}
+        await q.edit_message_text(f"✏️ Scrivi il target di *{CHANNELS[ch]}* (0-100):",
+                                  parse_mode="Markdown")
+        return INPUT_NUM
+
+    # ---- solo % finale (override) ----
+    if data.startswith("pct:"):
+        ch = data.split(":", 1)[1]
+        c = ensure_path(load_data(uid), y, m)["channels"][ch]
+        ov = c.get("overridePercent")
+        cur = f"{float(ov)*100:g}%" if ov is not None else "non impostata"
+        await q.edit_message_text(
+            f"📊 *Solo % finale — {CHANNELS[ch]}*\nAttuale: {cur}\n\n"
+            f"_Imposta direttamente la % del mese (ignora Sì/No/Ric)._",
+            parse_mode="Markdown", reply_markup=pct_markup(ch))
+        return ConversationHandler.END
+
+    if data.startswith("pctset:"):
+        _, ch, val = data.split(":")
+        d = load_data(uid); ensure_path(d, y, m)["channels"][ch]["overridePercent"] = float(val) / 100
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text(f"📊 % impostata a {val}%\n\n" + text, parse_mode="Markdown",
+                                  reply_markup=markup)
+        return ConversationHandler.END
+
+    if data.startswith("pctx:"):
+        ch = data.split(":", 1)[1]
+        context.user_data["awaiting"] = {"kind": "pct", "ch": ch}
+        await q.edit_message_text(f"✏️ Scrivi la % finale di *{CHANNELS[ch]}* (0-100):",
+                                  parse_mode="Markdown")
+        return INPUT_NUM
+
+    if data.startswith("pctdel:"):
+        ch = data.split(":", 1)[1]
+        d = load_data(uid); ensure_path(d, y, m)["channels"][ch]["overridePercent"] = None
+        save_data(uid, d)
+        text, markup = channel_screen(uid, ch, y, m)
+        await q.edit_message_text("❌ % rimossa.\n\n" + text, parse_mode="Markdown", reply_markup=markup)
+        return ConversationHandler.END
+
+    return ConversationHandler.END
+
+
+async def on_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestisce i pochi input numerici (valori esatti, target/% personalizzati)."""
+    link = get_link(update.effective_user.id)
+    if not link:
+        await update.message.reply_text("🔒 Usa /start.")
+        return ConversationHandler.END
+    uid = link["uid"]
+    aw = context.user_data.get("awaiting") or {}
+    kind = aw.get("kind"); ch = aw.get("ch")
+    y, m = get_period(context)
+    txt = update.message.text.strip()
+
+    if kind == "counts":
+        parts = txt.replace(",", " ").split()
+        try:
+            nums = [max(0, int(p)) for p in parts]
+            assert 1 <= len(nums) <= 3
+        except Exception:  # noqa: BLE001
+            await update.message.reply_text("Scrivi da 1 a 3 numeri interi: Sì No Ric (es. 80 10 2)")
+            return INPUT_NUM
+        yes = nums[0]
+        no = nums[1] if len(nums) > 1 else 0
+        rec = nums[2] if len(nums) > 2 else 0
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        c["mode"] = "monthly"; c["monthly"] = {"yes": yes, "no": no, "rec": rec}
+        save_data(uid, d)
+        context.user_data.pop("awaiting", None)
+        text, markup = channel_screen(uid, ch, y, m)
+        await update.message.reply_text("✅ Valori impostati.\n\n" + text, parse_mode="Markdown",
+                                         reply_markup=markup)
+        return ConversationHandler.END
+
+    if kind in ("target", "pct"):
+        try:
+            val = float(txt.replace(",", "."))
+            assert 0 <= val <= 100
+        except Exception:  # noqa: BLE001
+            await update.message.reply_text("Inserisci un numero tra 0 e 100.")
+            return INPUT_NUM
+        d = load_data(uid); c = ensure_path(d, y, m)["channels"][ch]
+        if kind == "target":
+            c["target"] = val
+        else:
+            c["overridePercent"] = val / 100
+        save_data(uid, d)
+        context.user_data.pop("awaiting", None)
+        text, markup = channel_screen(uid, ch, y, m)
+        await update.message.reply_text("✅ Fatto.\n\n" + text, parse_mode="Markdown",
+                                         reply_markup=markup)
+        return ConversationHandler.END
+
+    await update.message.reply_text("Operazione non riconosciuta.",
+                                     reply_markup=main_menu(update.effective_user.id))
     return ConversationHandler.END
 
 
@@ -789,6 +1154,10 @@ def main():
             ],
             ADMIN_PW: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, admin_password),
+                nav,
+            ],
+            INPUT_NUM: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, on_text_input),
                 nav,
             ],
         },
