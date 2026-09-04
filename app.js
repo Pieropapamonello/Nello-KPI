@@ -76,16 +76,28 @@ function sanitizeData(obj){
   }catch(e){ return defaultData(); }
 }
 
+let cloudHydrated = false;
+let cloudBaseUpdatedAtMs = null;
+
 async function loadCloudData(){
-  if(!isAuthed()) return null;
+  if(!isAuthed()) return { found:false };
   try{
     const snap = await userDocRef().get();
     if(snap.exists){
       const d = snap.data();
-      if(d && d.data) return sanitizeData(d.data);
+      if(d && d.data){
+        return {
+          found:true,
+          data:sanitizeData(d.data),
+          updatedAtMs:d.updatedAt?.toMillis?.() ?? null
+        };
+      }
     }
-  }catch(e){ console.warn("Cloud load failed:", e); }
-  return null;
+    return { found:false };
+  }catch(e){
+    console.warn("Cloud load failed:", e);
+    return { found:false, error:e };
+  }
 }
 
 let cloudSaveTimer = null;
@@ -98,42 +110,69 @@ function setSaveState(label, state=""){
   if(retrySyncBtn) retrySyncBtn.classList.toggle("hidden", state!=="error");
 }
 function scheduleCloudSave(){
-  if(!isAuthed()) return;
+  if(!isAuthed() || !cloudHydrated) return;
   clearTimeout(cloudSaveTimer);
   setSaveState("Sincronizzazione…", "saving");
   cloudSaveTimer = setTimeout(()=>{ saveCloudNow(); }, 800);
 }
 
 async function saveCloudNow(){
-  if(!isAuthed()) return;
+  if(!isAuthed() || !cloudHydrated) return;
   try{
-    await userDocRef().set({
-      schema: 1,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      data: DATA
-    }, { merge:true });
+    const ref = userDocRef();
+    await db.runTransaction(async transaction=>{
+      const snap = await transaction.get(ref);
+      const previous = snap.exists ? snap.data() : null;
+      const remoteUpdatedAtMs = previous?.updatedAt?.toMillis?.() ?? null;
+      if(cloudBaseUpdatedAtMs !== null && remoteUpdatedAtMs !== null && remoteUpdatedAtMs > cloudBaseUpdatedAtMs){
+        throw new Error("REMOTE_DATA_CHANGED");
+      }
+      const payload = {
+        schema: 2,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        data: DATA
+      };
+      if(previous?.data){
+        payload.previousData = previous.data;
+        payload.previousUpdatedAt = previous.updatedAt || null;
+      }
+      transaction.set(ref, payload, { merge:true });
+    });
+    const committed = await ref.get();
+    cloudBaseUpdatedAtMs = committed.data()?.updatedAt?.toMillis?.() ?? Date.now();
     setSaveState("Sincronizzato", "saved");
   }catch(e){
     console.warn("Cloud save failed:", e);
-    setSaveState("Errore sincronizzazione", "error");
+    setSaveState(e?.message === "REMOTE_DATA_CHANGED" ? "Dati aggiornati altrove: ricarica" : "Errore sincronizzazione", "error");
   }
 }
 
-window.addEventListener("online", ()=>{ if(isAuthed()) saveCloudNow(); });
+window.addEventListener("online", ()=>{ if(isAuthed()) syncFromCloud(); });
 window.addEventListener("offline", ()=>setSaveState("Salvato offline", "saving"));
 
 async function syncFromCloud(){
   if(!isAuthed()) return;
+  const syncingUid = currentUser.uid;
+  cloudHydrated = false;
   setSaveState("Sincronizzazione…", "saving");
   const cloud = await loadCloudData();
-  if(cloud){
-    DATA = cloud;
+  if(currentUser.uid !== syncingUid) return;
+  if(cloud.error){
+    setSaveState("Errore caricamento dati", "error");
+    return;
+  }
+  if(cloud.found){
+    DATA = cloud.data;
+    cloudBaseUpdatedAtMs = cloud.updatedAtMs;
     // persist locally for offline use
     try{ localStorage.setItem(storeKey(), JSON.stringify(DATA)); }catch(e){}
   }else{
-    // first login: push local data up
+    // Il documento e' certamente assente: solo ora crea la prima copia cloud.
+    cloudBaseUpdatedAtMs = null;
+    cloudHydrated = true;
     await saveCloudNow();
   }
+  cloudHydrated = true;
   rebuildYearMonthSelectors();
   resetSteps();
   updateMiniKpi();
@@ -144,18 +183,25 @@ async function syncFromCloud(){
 
 function loadData(){
   const raw = localStorage.getItem(storeKey());
-  if(!raw){ DATA = defaultData(); saveData(); return; }
+  if(!raw){
+    DATA = defaultData();
+    if(!isAuthed()) saveData();
+    return;
+  }
   try{
     DATA = JSON.parse(raw);
     if(!DATA.years) throw new Error("bad");
   }catch(e){
     DATA = defaultData();
-    saveData();
+    if(!isAuthed()) saveData();
   }
 }
 function saveData(){
   localStorage.setItem(storeKey(), JSON.stringify(DATA));
-  if(isAuthed()) scheduleCloudSave();
+  if(isAuthed()){
+    if(cloudHydrated) scheduleCloudSave();
+    else setSaveState("Caricamento dati...", "saving");
+  }
   else{
     setSaveState("Salvato", "saved");
     clearTimeout(saveStateTimer);
@@ -294,7 +340,7 @@ const btnEmailSignup = document.getElementById("btnEmailSignup");
 const btnResetPass   = document.getElementById("btnResetPass");
 const installAppBtn = document.getElementById("installAppBtn");
 const retrySyncBtn = document.getElementById("retrySyncBtn");
-if(retrySyncBtn) retrySyncBtn.addEventListener("click", ()=>saveCloudNow());
+if(retrySyncBtn) retrySyncBtn.addEventListener("click", ()=>cloudHydrated ? saveCloudNow() : syncFromCloud());
 const targetPill = document.getElementById("targetPill");
 const inlineTarget = document.getElementById("inlineTarget");
 const inlineTargetWrap = document.getElementById("inlineTargetWrap");
@@ -1964,7 +2010,13 @@ btnCloseModal.addEventListener("click", hideModal);
 modalOverlay.addEventListener("click", (e)=>{ if(e.target===modalOverlay) hideModal(); });
 
 function setUser(uid, name){
-  currentUser = { uid: uid || "guest", name: name || "Guest" };
+  const nextUid = uid || "guest";
+  if(currentUser.uid !== nextUid){
+    cloudHydrated = false;
+    cloudBaseUpdatedAtMs = null;
+    clearTimeout(cloudSaveTimer);
+  }
+  currentUser = { uid: nextUid, name: name || "Guest" };
   userLine.textContent = currentUser.name;
   loginBtn.textContent = (currentUser.uid==="guest") ? "Login" : "Logout";
 
