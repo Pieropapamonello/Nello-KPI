@@ -89,9 +89,17 @@ async function loadCloudData(){
 }
 
 let cloudSaveTimer = null;
+let saveStateTimer = null;
+function setSaveState(label, state=""){
+  const el = document.getElementById("saveState");
+  if(!el) return;
+  el.textContent = label;
+  el.className = `saveState ${state}`.trim();
+}
 function scheduleCloudSave(){
   if(!isAuthed()) return;
   clearTimeout(cloudSaveTimer);
+  setSaveState("Sincronizzazione…", "saving");
   cloudSaveTimer = setTimeout(()=>{ saveCloudNow(); }, 800);
 }
 
@@ -103,11 +111,16 @@ async function saveCloudNow(){
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       data: DATA
     }, { merge:true });
-  }catch(e){ console.warn("Cloud save failed:", e); }
+    setSaveState("Sincronizzato", "saved");
+  }catch(e){
+    console.warn("Cloud save failed:", e);
+    setSaveState("Salvato offline", "saving");
+  }
 }
 
 async function syncFromCloud(){
   if(!isAuthed()) return;
+  setSaveState("Sincronizzazione…", "saving");
   const cloud = await loadCloudData();
   if(cloud){
     DATA = cloud;
@@ -121,6 +134,7 @@ async function syncFromCloud(){
   resetSteps();
   updateMiniKpi();
   renderStats();
+  setSaveState("Sincronizzato", "saved");
 }
 
 
@@ -135,7 +149,15 @@ function loadData(){
     saveData();
   }
 }
-function saveData(){ localStorage.setItem(storeKey(), JSON.stringify(DATA)); scheduleCloudSave(); }
+function saveData(){
+  localStorage.setItem(storeKey(), JSON.stringify(DATA));
+  if(isAuthed()) scheduleCloudSave();
+  else{
+    setSaveState("Salvato", "saved");
+    clearTimeout(saveStateTimer);
+    saveStateTimer = setTimeout(()=>setSaveState("Sul dispositivo"), 1600);
+  }
+}
 
 function ensurePath(year, month){
   if(!DATA.years) DATA.years = {};
@@ -264,6 +286,7 @@ const passInput  = document.getElementById("passInput");
 const btnEmailLogin  = document.getElementById("btnEmailLogin");
 const btnEmailSignup = document.getElementById("btnEmailSignup");
 const btnResetPass   = document.getElementById("btnResetPass");
+const installAppBtn = document.getElementById("installAppBtn");
 const targetPill = document.getElementById("targetPill");
 const inlineTarget = document.getElementById("inlineTarget");
 const inlineTargetWrap = document.getElementById("inlineTargetWrap");
@@ -282,9 +305,57 @@ let selectedMonth = nowMonth();
 let channel = null;     // "phone" | "chat"
 let mode = null;        // "monthly" | "weekly"
 
-let soundOn = true;
+let soundOn = false;
 let hapticOn = true;
 let lastAuthUid = null; // used to detect fresh login to show welcome toast
+
+/* =========================================================
+   PWA / INSTALLAZIONE
+========================================================= */
+let deferredInstallPrompt = null;
+const isStandalone = ()=>window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone===true;
+const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+function setInstallButtonVisibility(visible){
+  if(!installAppBtn) return;
+  installAppBtn.classList.toggle("hidden", !visible || isStandalone());
+}
+
+window.addEventListener("beforeinstallprompt", event=>{
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  setInstallButtonVisibility(true);
+});
+
+window.addEventListener("appinstalled", ()=>{
+  deferredInstallPrompt = null;
+  setInstallButtonVisibility(false);
+  showWelcome("Nello KPI è stata installata", true);
+});
+
+if(installAppBtn){
+  if(isIos && !isStandalone()) setInstallButtonVisibility(true);
+  installAppBtn.addEventListener("click", async ()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      if(choice.outcome==="accepted") setInstallButtonVisibility(false);
+      deferredInstallPrompt = null;
+      return;
+    }
+    if(isIos){
+      alert("Per installare Nello KPI: tocca Condividi in Safari, poi ‘Aggiungi alla schermata Home’.");
+      return;
+    }
+    alert("Apri il menu del browser e scegli ‘Installa app’ o ‘Aggiungi alla schermata Home’.");
+  });
+}
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("./sw.js").catch(error=>console.warn("Service worker non registrato:",error));
+  });
+}
 
 /* =========================================================
    Math
@@ -312,6 +383,14 @@ function neededNoToYes(yes,no,rec,t){
   const k = (t*d) - n;
   if(k <= 0) return 0;
   return Math.min(no, Math.ceil(k - 1e-12));
+}
+function getCurrentTargetPct(){
+  if(channel){
+    const stored = Number(getChannelObj(selectedYear, selectedMonth, channel).target);
+    if(Number.isFinite(stored)) return clampNum(stored,0,100);
+  }
+  const visibleValue = Number(inlineTarget?.value);
+  return Number.isFinite(visibleValue) ? clampNum(visibleValue,0,100) : 86;
 }
 
 /* =========================================================
@@ -486,12 +565,16 @@ document.addEventListener('click', (e)=>{
   document.addEventListener('touchmove', (ev)=>{ for(const t of ev.touches) spawn(t.clientX, t.clientY, t.force || 0.9); }, {passive:true});
 })();
 
-const myConfetti = confetti.create(document.getElementById("confettiCanvas"), { resize:true, useWorker:true });
+const myConfetti = (typeof confetti !== "undefined")
+  ? confetti.create(document.getElementById("confettiCanvas"), { resize:true, useWorker:true })
+  : null;
 function celebrate(){
   resultBox.classList.add("pulse");
   setTimeout(()=>resultBox.classList.remove("pulse"),450);
-  myConfetti({ particleCount: 120, spread: 80, origin: { y: 0.62 } });
-  setTimeout(()=>myConfetti({ particleCount: 70, spread: 110, origin: { y: 0.42 } }),140);
+  if(myConfetti){
+    myConfetti({ particleCount: 120, spread: 80, origin: { y: 0.62 } });
+    setTimeout(()=>myConfetti({ particleCount: 70, spread: 110, origin: { y: 0.42 } }),140);
+  }
   if(hapticOn && navigator.vibrate) navigator.vibrate([60,40,80,40,120]);
   win();
 }
@@ -514,8 +597,8 @@ function setTab(name){
 
   viewInput.classList.toggle("hidden", name!=="input");
   viewStats.classList.toggle("hidden", name!=="stats");
-  // restore toolbar visibility unless we're on input-focused view
-  const toolbarEl = document.querySelector('.toolbar'); if(toolbarEl) toolbarEl.style.display = (name === 'input') ? 'none' : '';
+  // Il periodo resta sempre visibile: è contesto essenziale sia in inserimento sia nelle statistiche.
+  const toolbarEl = document.querySelector('.toolbar'); if(toolbarEl) toolbarEl.style.display = '';
 
   if(name==="stats") renderStats();
   if(name==="input"){
@@ -533,7 +616,7 @@ function setTab(name){
       });
     }
 
-    if(inlineTargetWrap){ inlineTargetWrap.classList.add('hidden'); inlineTargetWrap.classList.remove('showInlineWrap'); inlineTargetWrap.setAttribute('aria-hidden','true'); if(inlineTarget) inlineTarget.value=''; }
+    if(inlineTargetWrap){ inlineTargetWrap.classList.add('hidden'); inlineTargetWrap.classList.remove('showInlineWrap'); inlineTargetWrap.setAttribute('aria-hidden','true'); }
     if(sectionCanale){ sectionCanale.classList.remove('hidden'); }
 
     // hide mode selection and data sections so only channel choices show
@@ -838,7 +921,7 @@ function saveFromInputs(){
   if(!channel) return;
   const chObj = getChannelObj(selectedYear, selectedMonth, channel);
 
-  if(typeof inlineTarget !== 'undefined' && inlineTarget){ chObj.target = clampNum(Number(inlineTarget.value||0), 0, 100); }
+  if(inlineTarget && inlineTarget.value !== "") chObj.target = clampNum(Number(inlineTarget.value), 0, 100);
   if(mode) chObj.mode = mode;
 
   chObj.monthly = {
@@ -864,6 +947,41 @@ function saveFromInputs(){
     showLiveResultPulse();
   }
 }));
+
+// Inserimento rapido: utile soprattutto da telefono, senza aprire ogni volta la tastiera.
+let lastQuickChange = null;
+const undoQuickBtn = document.getElementById("undoQuickBtn");
+document.querySelectorAll("[data-quick-field]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const input = document.getElementById(btn.dataset.quickField);
+    if(!input) return;
+    const before = clampInt(Number(input.value));
+    input.value = String(before + 1);
+    lastQuickChange = { input, before };
+    if(undoQuickBtn) undoQuickBtn.disabled = false;
+    input.dispatchEvent(new Event("input", { bubbles:true }));
+  });
+});
+if(undoQuickBtn){
+  undoQuickBtn.addEventListener("click", ()=>{
+    if(!lastQuickChange) return;
+    lastQuickChange.input.value = String(lastQuickChange.before);
+    lastQuickChange.input.dispatchEvent(new Event("input", { bubbles:true }));
+    lastQuickChange = null;
+    undoQuickBtn.disabled = true;
+  });
+}
+
+// Normalizza valori vuoti, decimali o negativi quando l'utente lascia il campo.
+document.querySelectorAll('input[type="number"][step="1"]').forEach(input=>{
+  input.addEventListener("blur", ()=>{
+    const normalized = clampInt(Number(input.value));
+    if(input.value !== String(normalized)){
+      input.value = String(normalized);
+      input.dispatchEvent(new Event("input", { bubbles:true }));
+    }
+  });
+});
 for(const w of weeks){
   for(const k of ["yes","no","rec"]){
     wEl(w,k).addEventListener("input", ()=>{
@@ -1007,7 +1125,7 @@ function getCurrentTotals(){
 }
 
 function renderResult(triggerFx=false){
-  const targetPct = clampNum(Number((typeof inlineTarget!=='undefined' && inlineTarget && inlineTarget.value) ? inlineTarget.value : 86), 0, 100);
+  const targetPct = getCurrentTargetPct();
   const t = targetPct/100;
 
   const data = getCurrentTotals();
@@ -1133,7 +1251,7 @@ shareImgBtn.addEventListener("click", shareImage);
 async function shareText(){
   tick();
   const data = getCurrentTotals();
-  const targetPct = clampNum(Number((typeof inlineTarget!=='undefined' && inlineTarget && inlineTarget.value) ? inlineTarget.value : 86), 0, 100);
+  const targetPct = getCurrentTargetPct();
   const r = data ? ratio(data.yes, data.no, data.rec) : null;
   const pct = r===null ? "—" : (r*100).toFixed(2)+"%";
   const chName = (channel==="phone") ? "Telefono" : "Messaggistica";
@@ -1156,6 +1274,10 @@ Risultato: ${pct}`;
 
 async function shareImage(){
   tick();
+  if(typeof html2canvas === "undefined"){
+    alert("La condivisione immagine non è disponibile offline.");
+    return;
+  }
   const canvas = await html2canvas(resultBox, { backgroundColor:null, scale: Math.min(2, window.devicePixelRatio || 1) });
   const blob = await new Promise(res => canvas.toBlob(res, "image/png", 1.0));
   if(!blob) return;
@@ -1192,12 +1314,16 @@ function sumChannelMonth(chObj){
 }
 
 function rebuildStatsYears(){
+  const requestedYear = statsYear.value || selectedYear;
   const years = Object.keys(DATA.years||{});
   const yNow = nowYear();
-  if(!years.includes(yNow)) years.push(yNow);
+  for(let year=2017; year<=Math.max(2030,Number(yNow)); year++){
+    const value=String(year);
+    if(!years.includes(value)) years.push(value);
+  }
   years.sort();
   statsYear.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join("");
-  statsYear.value = selectedYear;
+  statsYear.value = years.includes(requestedYear) ? requestedYear : selectedYear;
 }
 
 function hasAnyData(chObj){
@@ -1281,6 +1407,86 @@ function summarizeYear(monthsObj, chKey){
   return { total, totalR, yearTarget, avgR, avgT, percentOnlyMonths, monthsWithPercent: percents.length, weightDen };
 }
 
+const MONTH_KEYS = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+
+function channelTrend(monthsObj, chKey){
+  return MONTH_KEYS.map(mk=>{
+    const chObj = monthsObj[mk]?.channels?.[chKey];
+    const st = getChannelStats(chObj);
+    return { month:mk, value:hasAnyData(chObj) ? st.r : null, target:st.target };
+  });
+}
+
+function combinedTrend(phone, chat, filter){
+  return MONTH_KEYS.map((mk, index)=>{
+    const source = filter === "phone" ? [phone[index]] : filter === "chat" ? [chat[index]] : [phone[index], chat[index]];
+    const valid = source.filter(item=>item.value !== null);
+    return {
+      month:mk,
+      value:valid.length ? valid.reduce((sum,item)=>sum+item.value,0)/valid.length : null,
+      target:valid.length ? valid.reduce((sum,item)=>sum+item.target,0)/valid.length : null
+    };
+  });
+}
+
+function renderTrendInsights(trend){
+  const valid = trend.filter(item=>item.value !== null);
+  if(!valid.length) return "";
+  const latest = valid[valid.length-1];
+  const previous = valid.length > 1 ? valid[valid.length-2] : null;
+  const delta = previous ? (latest.value-previous.value)*100 : null;
+  const best = valid.reduce((winner,item)=>item.value>winner.value ? item : winner, valid[0]);
+  const hit = valid.filter(item=>item.target !== null && item.value>=item.target).length;
+  const deltaClass = delta === null ? "" : delta >= 0 ? "positive" : "negative";
+  const deltaText = delta === null ? "—" : `${delta>=0?"+":""}${delta.toFixed(1)} pt`;
+
+  return `<div class="insightGrid" aria-label="Indicatori sintetici">
+    <div class="insightCard"><div class="insightLabel">Ultimo dato</div><div class="insightValue">${pctStr(latest.value)}</div><div class="insightNote">${monthLabel(latest.month)}</div></div>
+    <div class="insightCard"><div class="insightLabel">Variazione</div><div class="insightValue ${deltaClass}">${deltaText}</div><div class="insightNote">rispetto al dato precedente</div></div>
+    <div class="insightCard"><div class="insightLabel">Miglior mese</div><div class="insightValue">${pctStr(best.value)}</div><div class="insightNote">${monthLabel(best.month)} · ${hit}/${valid.length} in target</div></div>
+  </div>`;
+}
+
+function svgSeries(items, cssClass, width, height, pad){
+  const plotW = width-pad.left-pad.right;
+  const plotH = height-pad.top-pad.bottom;
+  const x = i=>pad.left+(plotW*i/11);
+  const y = value=>pad.top+plotH-(clampNum(value*100,0,100)/100)*plotH;
+  const segments = [];
+  let current = [];
+  items.forEach((item,index)=>{
+    if(item.value === null){ if(current.length){segments.push(current);current=[];} return; }
+    current.push(`${x(index).toFixed(1)},${y(item.value).toFixed(1)}`);
+  });
+  if(current.length) segments.push(current);
+  const lines = segments.map(points=>`<polyline class="chartLine ${cssClass}" points="${points.join(" ")}"/>`).join("");
+  const targets = items.map((item,index)=>item.value===null ? null : `${x(index).toFixed(1)},${y(item.target).toFixed(1)}`).filter(Boolean);
+  const targetLine = targets.length ? `<polyline class="chartTarget ${cssClass}" points="${targets.join(" ")}"/>` : "";
+  const dots = items.map((item,index)=>item.value===null ? "" : `<circle class="chartDot ${cssClass}" cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="5"><title>${monthLabel(item.month)}: ${(item.value*100).toFixed(2)}% · target ${(item.target*100).toFixed(1)}%</title></circle>`).join("");
+  return targetLine+lines+dots;
+}
+
+function renderTrendChart(phone, chat, filter, year){
+  const hasPhone = phone.some(item=>item.value!==null);
+  const hasChat = chat.some(item=>item.value!==null);
+  if(!hasPhone && !hasChat) return "";
+  const width=720, height=280, pad={left:42,right:18,top:18,bottom:38};
+  const plotH=height-pad.top-pad.bottom;
+  const grid=[0,25,50,75,100].map(value=>{
+    const y=pad.top+plotH-(value/100)*plotH;
+    return `<line class="chartGrid" x1="${pad.left}" y1="${y}" x2="${width-pad.right}" y2="${y}"/><text class="chartAxis" x="${pad.left-8}" y="${y+4}" text-anchor="end">${value}%</text>`;
+  }).join("");
+  const labels=MONTH_KEYS.map((mk,index)=>{
+    const x=pad.left+((width-pad.left-pad.right)*index/11);
+    return `<text class="chartAxis" x="${x}" y="${height-12}" text-anchor="middle">${monthLabel(mk).slice(0,3)}</text>`;
+  }).join("");
+  const showPhone = filter!=="chat" && hasPhone;
+  const showChat = filter!=="phone" && hasChat;
+  const series=(showPhone?svgSeries(phone,"phone",width,height,pad):"")+(showChat?svgSeries(chat,"chat",width,height,pad):"");
+  const legend=(showPhone?'<span><i class="phone"></i>Telefono</span>':"")+(showChat?'<span><i class="chat"></i>Messaggistica</span>':"")+'<span><i class="target"></i>Target</span>';
+  return `<section class="trendCard"><div class="trendHeader"><div><strong>Andamento ${year}</strong><span>Tocca i punti per leggere KPI e obiettivo</span></div><div class="trendLegend">${legend}</div></div><div class="chartScroller"><svg class="trendChart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafico andamento KPI mensile ${year}">${grid}${labels}${series}</svg></div></section>`;
+}
+
 function renderStats(){
   rebuildStatsYears();
   statsUser.textContent = currentUser?.name || "Guest";
@@ -1291,6 +1497,9 @@ function renderStats(){
   const monthsObj = DATA.years?.[y]?.months || {};
   const sumPhone = summarizeYear(monthsObj, "phone");
   const sumChat  = summarizeYear(monthsObj, "chat");
+  const phoneTrend = channelTrend(monthsObj, "phone");
+  const chatTrend = channelTrend(monthsObj, "chat");
+  const selectedTrend = combinedTrend(phoneTrend, chatTrend, filter);
 
   function fmtTarget(t){
     const v = Math.round(t * 1000) / 10;
@@ -1360,7 +1569,7 @@ function renderStats(){
     </div>`;
   }
 
-  const monthCards = ["01","02","03","04","05","06","07","08","09","10","11","12"].map(mk=>{
+  const monthCards = MONTH_KEYS.map(mk=>{
     const mo = monthsObj[mk];
     const pObj = mo?.channels?.phone;
     const cObj = mo?.channels?.chat;
@@ -1389,9 +1598,11 @@ function renderStats(){
 
   const listHtml = monthCards.trim()
     ? `<div class="monthList">${monthCards}</div>`
-    : `<div class="summaryMeta" style="margin-top:12px;">Nessun dato salvato per i filtri selezionati. Usa “Aggiungi dati mesi precedenti”.</div>`;
+    : `<div class="emptyState"><strong>Inizia a costruire il tuo andamento</strong><span>Non ci sono ancora dati per questi filtri. Inserisci un mese e il grafico si aggiornerà subito.</span><button class="btnTiny" type="button" data-empty-add>Aggiungi il primo mese</button></div>`;
 
-  statsGrid.innerHTML = summaryHtml + listHtml;
+  const insightsHtml = renderTrendInsights(selectedTrend);
+  const chartHtml = renderTrendChart(phoneTrend, chatTrend, filter, y);
+  statsGrid.innerHTML = summaryHtml + insightsHtml + chartHtml + listHtml;
   // bind edit buttons (open backfill modal prefilled)
   statsGrid.querySelectorAll(".miniEdit").forEach(btn=>{
     btn.addEventListener("click", (e)=>{
@@ -1399,6 +1610,8 @@ function renderStats(){
       openHistoryModalWith(btn.dataset.y, btn.dataset.m, btn.dataset.ch);
     });
   });
+  const emptyAdd = statsGrid.querySelector("[data-empty-add]");
+  if(emptyAdd) emptyAdd.addEventListener("click", openHistoryModal);
 }
 statsChannel.addEventListener("change", ()=>{ tick(); renderStats(); });
 statsYear.addEventListener("change", ()=>{ tick(); renderStats(); });
@@ -1411,7 +1624,10 @@ function fillHistYearMonth(){
   // years
   const years = Object.keys(DATA.years||{});
   const yNow = nowYear();
-  if(!years.includes(yNow)) years.push(yNow);
+  for(let year=2017; year<=Math.max(2030,Number(yNow)); year++){
+    const value=String(year);
+    if(!years.includes(value)) years.push(value);
+  }
   years.sort();
   histYear.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join("");
 
@@ -1683,6 +1899,7 @@ function setUser(uid, name){
   resetSteps();
   updateMiniKpi();
   renderStats();
+  setSaveState(isAuthed() ? "Sincronizzazione…" : "Sul dispositivo", isAuthed() ? "saving" : "");
 }
 
 function showAuthErr(msg){
@@ -1814,17 +2031,14 @@ function init(){
   updateMiniKpi();
   setTab("input");
   renderStats();
-  // Try to start ambient music automatically (may be blocked by browser until user gesture)
-  try{ soundOn = true; ensureAudio(); startAmbient(); }catch(e){}
-
 }
 
-function showWelcome(name){
+function showWelcome(name, exact=false){
   try{
     const t = document.getElementById('welcomeToast');
     const n = document.getElementById('welcomeName');
     if(!t || !n) return;
-    n.textContent = "Ben tornato, " + name + "";
+    n.textContent = exact ? name : "Ben tornato, " + name;
     t.classList.remove('hidden');
     // force reflow then show
     void t.offsetWidth;
@@ -1833,7 +2047,7 @@ function showWelcome(name){
   }catch(e){ console.warn(e); }
 }
 
-auth.onAuthStateChanged((user)=>{
+if(auth) auth.onAuthStateChanged((user)=>{
   if(user){
     const name = user.displayName || user.email || "Utente";
     setUser(user.uid, name);
@@ -1863,7 +2077,7 @@ auth.onAuthStateChanged((user)=>{
     if(btnResendVerification) btnResendVerification.classList.add('hidden');
   }
 });
-auth.getRedirectResult().catch(()=>{});
+if(auth) auth.getRedirectResult().catch(()=>{});
 
 loadData();
 init();

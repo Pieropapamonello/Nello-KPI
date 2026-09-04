@@ -3,9 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#101421" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Nello KPI" />
 <title>Nello KPI</title>
 
 <link rel="stylesheet" href="style.css" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="192x192" href="app-icon-192.png" />
+<link rel="apple-touch-icon" href="app-icon-192.png" />
 </head>
 
 <body>
@@ -19,7 +27,7 @@
         <div class="avatar"><img id="avatarImg" src="nello_ok.png" alt="Nello"></div>
         <div class="title">
           <h1>Nello KPI</h1>
-          <p id="userLine">Guest</p>
+          <p><span id="userLine">Guest</span><span class="saveState" id="saveState" aria-live="polite">Pronto</span></p>
         </div>
 
         <div class="right">
@@ -44,8 +52,13 @@
 
     <div class="content">
       <div id="viewInput">
+        <div class="introStrip">
+          <div class="introIcon" aria-hidden="true">◎</div>
+          <div><strong>Aggiorna il tuo KPI</strong><span>Scegli canale e modalità: i dati vengono salvati automaticamente.</span></div>
+          <button class="installAppBtn hidden" id="installAppBtn" type="button" aria-label="Installa Nello KPI sul dispositivo">Installa</button>
+        </div>
         <div id="sectionCanale" class="section">
-          <p class="sectionTitle">1) Canale</p>
+          <p class="sectionTitle"><span class="stepNumber">1</span> Scegli il canale</p>
 
           <div class="choiceRow channelRow">
             <button id="btnPhone" class="chanBtn phoneBtn" type="button" aria-pressed="false">
@@ -79,7 +92,7 @@
 
 
         <div class="section hidden" id="stepMode">
-          <p class="sectionTitle">3) Modalità</p>
+          <p class="sectionTitle"><span class="stepNumber">2</span> Scegli la modalità</p>
           <div class="choiceRow">
             <button id="btnMonthly" type="button"><span class="ico">📅</span> Mensile</button>
             <button id="btnWeekly" type="button"><span class="ico">🗓️</span> Settimanale</button>
@@ -87,11 +100,17 @@
         </div>
 
         <div class="section hidden" id="monthlySection">
-          <p class="sectionTitle">Dati mensili</p>
+          <p class="sectionTitle"><span class="stepNumber">3</span> Dati mensili</p>
           <div class="row3">
             <div><label>Sì</label><input id="m_yes" type="number" min="0" step="1" value="0"></div>
             <div><label>No</label><input id="m_no" type="number" min="0" step="1" value="0"></div>
             <div><label>Ric</label><input id="m_rec" type="number" min="0" step="1" value="0"></div>
+          </div>
+          <div class="quickEntry" aria-label="Inserimento rapido">
+            <button type="button" data-quick-field="m_yes" aria-label="Aggiungi un Sì">+1 Sì</button>
+            <button type="button" data-quick-field="m_no" aria-label="Aggiungi un No">+1 No</button>
+            <button type="button" data-quick-field="m_rec" aria-label="Aggiungi un Ric">+1 Ric</button>
+            <button type="button" id="undoQuickBtn" disabled aria-label="Annulla ultima aggiunta">↶</button>
           </div>
           <div class="btnRow">
             <button class="btnTiny" id="resetMonthlyBtn" type="button">🔄 Reset mese</button>
@@ -154,7 +173,7 @@
           </div>
         </div>
 
-        <button class="btn hidden" id="calcBtn" type="button">⚡ Calcola</button>
+        <button class="btn hidden" id="calcBtn" type="button">Mostra risultato</button>
 
         <div class="result hidden" id="resultBox">
           <div class="resultHeader">
@@ -179,8 +198,8 @@
 
       <div id="viewStats" class="hidden">
         <div class="statCard">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-            <strong>Statistiche</strong>
+          <div class="statsHeading">
+            <div><strong>Il tuo andamento</strong><span>Trend, obiettivi e dettaglio mensile</span></div>
             <span style="color:#9aa1b5;font-size:12px;" id="statsUser">Guest</span>
           </div>
 

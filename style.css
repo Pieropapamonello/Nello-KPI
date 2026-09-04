@@ -42,9 +42,10 @@ body{
   display:flex;
   justify-content:center;
   padding:14px;
+  overflow-x:hidden;
 }
 
-.wrap{width:100%; max-width:560px;}
+.wrap{width:100%; max-width:760px; min-width:0;}
 .card{
   position:relative;
   background: linear-gradient(180deg, var(--cardA), var(--cardB));
@@ -80,6 +81,7 @@ body{
   align-items:center;
   gap:12px;
 }
+.header > *{min-width:0}
 
 .avatar{
   width:48px;height:48px;border-radius:50%;
@@ -93,6 +95,17 @@ body{
 .title{min-width:0}
 .title h1{ margin:0; font-size:18px; font-weight:900; letter-spacing:.2px;}
 .title p{ margin:4px 0 0; font-size:12px; color:var(--muted);}
+.saveState{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-left:8px;
+  color:#8f97ac;
+  transition:color .2s ease;
+}
+.saveState::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.saveState.saving{color:var(--amber)}
+.saveState.saved{color:#40ffa7}
 
 .right{
   margin-left:auto;
@@ -180,6 +193,7 @@ input:focus, select:focus{
   color:#e9eefc;
   font-weight:900;
   cursor:pointer;
+  min-width:0;
 }
 .navTabs button.active{
   color:#061018;
@@ -192,6 +206,34 @@ input:focus, select:focus{
   position:relative;
   z-index:1;
   padding:14px;
+}
+
+.introStrip{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  margin-bottom:12px;
+  padding:12px 14px;
+  border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.18);
+  border-radius:16px;
+  background:linear-gradient(135deg,hsla(var(--accent-h),var(--accent-s),var(--accent-l),.10),rgba(255,255,255,.025));
+}
+.introStrip strong,.introStrip span{display:block}
+.introStrip > div:last-child{min-width:0}
+.introStrip > div:nth-child(2){min-width:0;flex:1}
+.introStrip strong{font-size:13px}
+.introStrip span{margin-top:3px;color:#9aa1b5;font-size:11px;line-height:1.4}
+.introIcon{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.16);font-size:20px;color:var(--cyan);flex:0 0 auto}
+.installAppBtn{
+  flex:0 0 auto;
+  padding:9px 12px;
+  border:1px solid hsla(var(--accent-h),var(--accent-s),var(--accent-l),.28);
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  color:#061018;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
 }
 
 .section{
@@ -209,6 +251,7 @@ input:focus, select:focus{
   color:#b9c0d0;
   margin:0 0 10px;
 }
+.stepNumber{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:6px;border-radius:8px;background:hsla(var(--accent-h),var(--accent-s),var(--accent-l),.16);color:var(--cyan);font-weight:900}
 
 .row2{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
 .row3{display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;}
@@ -248,10 +291,24 @@ input:focus, select:focus{
   cursor:pointer;
 }
 
+.quickEntry{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.quickEntry button{
+  min-height:40px;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:12px;
+  background:rgba(255,255,255,.055);
+  color:#f3f6ff;
+  font-weight:800;
+  cursor:pointer;
+}
+.quickEntry button:first-child{color:#63edb2;border-color:rgba(64,255,167,.25)}
+.quickEntry button:nth-child(2){color:#ff8d8d;border-color:rgba(255,107,107,.22)}
+.quickEntry button:disabled{opacity:.35;cursor:not-allowed}
+
 .hidden{display:none !important}
 
-.choiceRow{display:grid; grid-template-columns: 1fr 1fr; gap:10px; align-items:center; position:relative;}
-.channelRow{ grid-template-columns: 1fr 1fr; }
+.choiceRow{display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:10px; align-items:center; position:relative;}
+.channelRow{ grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 .chanBtn{ justify-content:center; }
 .chanBtn .btnText{ white-space:nowrap; }
 
@@ -272,6 +329,7 @@ input:focus, select:focus{
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: transform .26s cubic-bezier(.2,.9,.2,1), background .18s ease, box-shadow .18s ease, color .18s ease, border-color .18s ease;
+  min-width:0;
 }
 .choiceRow button .ico{
   width:30px;height:30px;border-radius:12px;
@@ -490,6 +548,10 @@ button:focus{ outline: none; box-shadow: 0 10px 30px rgba(0,0,0,.22), 0 0 0 6px 
 .kpiSub{ margin-top:6px; font-size:12px; color:#8f97ac; text-align:center; }
 
 .statCard{border:1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.03); border-radius:18px; padding:12px;}
+.statsHeading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.statsHeading strong,.statsHeading span{display:block}
+.statsHeading strong{font-size:16px}
+.statsHeading div span{margin-top:4px;color:#9aa1b5;font-size:11px}
 .miniTable{width:100%; border-collapse:collapse; margin-top:10px; font-size:12px;}
 .miniTable th, .miniTable td{padding:8px 6px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; color:#d9def0;}
 .miniTable th{color:#aab0c0; font-weight:800}
@@ -505,6 +567,34 @@ button:focus{ outline: none; box-shadow: 0 10px 30px rgba(0,0,0,.22), 0 0 0 6px 
   gap:10px;
   margin-top:10px;
 }
+
+.insightGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.insightCard{padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(255,255,255,.035)}
+.insightLabel{color:#8f97ac;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.insightValue{margin-top:6px;font-size:20px;font-weight:900}
+.insightValue.positive{color:#40ffa7}.insightValue.negative{color:#ff8d8d}
+.insightNote{margin-top:3px;color:#8f97ac;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.trendCard{margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:18px;background:rgba(0,0,0,.16)}
+.trendHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.trendHeader strong,.trendHeader span{display:block}
+.trendHeader span{margin-top:3px;color:#8f97ac;font-size:11px}
+.trendLegend{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;color:#aab0c0;font-size:10px}
+.trendLegend i{display:inline-block;width:16px;height:3px;margin-right:5px;border-radius:4px;vertical-align:middle}
+.trendLegend .phone{background:#43d9ff}.trendLegend .chat{background:#ff9f43}.trendLegend .target{height:0;border-top:2px dashed #aab0c0}
+.chartScroller{overflow-x:auto;overscroll-behavior-inline:contain;padding-bottom:2px}
+.trendChart{display:block;width:100%;min-width:560px;height:auto;overflow:visible}
+.chartGrid{stroke:rgba(255,255,255,.08);stroke-width:1}
+.chartAxis{fill:#7e87a0;font-size:10px}
+.chartLine{fill:none;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 3px 8px rgba(0,0,0,.35))}
+.chartLine.phone{stroke:#43d9ff}.chartLine.chat{stroke:#ff9f43}
+.chartTarget{fill:none;stroke-width:2;stroke-dasharray:7 7;opacity:.58}
+.chartTarget.phone{stroke:#43d9ff}.chartTarget.chat{stroke:#ff9f43}
+.chartDot{stroke:#111827;stroke-width:3;cursor:pointer}.chartDot.phone{fill:#43d9ff}.chartDot.chat{fill:#ff9f43}
+.chartEmpty{padding:36px 16px;text-align:center;color:#8f97ac;font-size:12px}
+.emptyState{margin-top:12px;padding:26px 18px;border:1px dashed rgba(255,255,255,.13);border-radius:18px;text-align:center;background:rgba(255,255,255,.02)}
+.emptyState strong,.emptyState span{display:block}.emptyState span{margin-top:6px;color:#8f97ac;font-size:12px;line-height:1.5}
+.emptyState button{margin-top:14px}
 @media (min-width: 460px){
   .statsSummary.two{ grid-template-columns: 1fr 1fr; }
 }
@@ -728,6 +818,25 @@ hr.sep{border:0; border-top:1px solid rgba(255,255,255,.08); margin:12px 0;}
   .btnRow{ grid-template-columns: 1fr; }
   .weekRow{ grid-template-columns: 58px 1fr 1fr 1fr; }
   .weekRow .weekBtn{ grid-column: 1 / -1; }
+  .quickEntry{grid-template-columns:repeat(2,1fr)}
+  .insightGrid{grid-template-columns:1fr}
+  .trendHeader{display:block}
+  .trendLegend{justify-content:flex-start;margin-top:8px}
+  .header{gap:8px}
+  .avatar{width:42px;height:42px}
+  .right{gap:6px}
+  .kpiMini{min-width:62px}
+  .pill{padding:8px 10px}
+  .navTabs button{font-size:12px;padding-inline:7px}
+  .chanBtn .btnText{font-size:14px}
+}
+
+@media (max-width:380px){
+  .kpiMini{display:none}
+  .choiceRow button{padding-inline:8px;gap:6px}
+  .chanBtn .btnText{font-size:13px}
+  .introStrip{flex-wrap:wrap}
+  .installAppBtn{width:100%}
 }
 
 /* Pointer / touch trail */

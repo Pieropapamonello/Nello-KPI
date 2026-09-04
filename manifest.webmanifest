@@ -1,0 +1,29 @@
+{
+  "id": "./",
+  "name": "Nello KPI",
+  "short_name": "Nello KPI",
+  "description": "Calcola, monitora e migliora i tuoi KPI mensili.",
+  "lang": "it",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b0302",
+  "theme_color": "#101421",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
