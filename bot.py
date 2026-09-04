@@ -78,6 +78,8 @@ WEB_DIR = Path(__file__).resolve().parent
 WEB_FILES = {
     "index.html", "style.css", "app.js",
     "nello.png", "nello_angry.png", "nello_ok.png",
+    "manifest.webmanifest", "sw.js",
+    "app-icon-192.png", "app-icon-512.png",
 }
 
 # stati delle conversazioni (input testuali)
