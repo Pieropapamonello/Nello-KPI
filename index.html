@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#101421" />
+<meta name="theme-color" content="#0c101d" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -45,15 +45,21 @@
       </div>
 
       <div class="navTabs">
-        <button id="tabInput" class="active" type="button">🧾 Inserimento</button>
-        <button id="tabStats" type="button">📈 Statistiche</button>
+        <button id="tabInput" class="active" type="button">
+          <svg class="tabIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5h6M9 9h6M9 13h3"/><path d="M5 3h14v18H5z"/></svg>
+          <span>Inserimento</span>
+        </button>
+        <button id="tabStats" type="button">
+          <svg class="tabIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg>
+          <span>Statistiche</span>
+        </button>
       </div>
     </div>
 
     <div class="content">
       <div id="viewInput">
         <div class="introStrip">
-          <div class="introIcon" aria-hidden="true">◎</div>
+          <div class="introIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M22 12h-3"/></svg></div>
           <div><strong>Aggiorna il tuo KPI</strong><span>Scegli canale e modalità: i dati vengono salvati automaticamente.</span></div>
           <button class="installAppBtn hidden" id="installAppBtn" type="button" aria-label="Installa Nello KPI sul dispositivo">Installa</button>
         </div>
@@ -199,7 +205,7 @@
       <div id="viewStats" class="hidden">
         <div class="statCard">
           <div class="statsHeading">
-            <div class="statsHeadingCopy"><strong>Il tuo andamento</strong><span>Trend, obiettivi e dettaglio mensile</span></div>
+            <div class="statsHeadingCopy"><span class="statsEyebrow">Dashboard personale</span><strong>Il tuo andamento</strong><span>Trend, obiettivi e dettaglio mensile</span></div>
             <span style="color:#9aa1b5;font-size:12px;" id="statsUser">Guest</span>
           </div>
 
