@@ -600,6 +600,13 @@ tabStats.addEventListener("click", ()=>{ tick(); setTab("stats"); });
 function updateMobileDock(active){
   document.querySelectorAll("[data-mobile-view]").forEach(button=>button.classList.toggle("active",button.dataset.mobileView===active));
 }
+const mobileDockEl=document.querySelector(".mobileDock");
+const mobileDockQuery=window.matchMedia("(max-width: 600px)");
+function syncMobileDockVisibility(){
+  if(mobileDockEl) mobileDockEl.classList.toggle("hidden",!mobileDockQuery.matches);
+}
+syncMobileDockVisibility();
+mobileDockQuery.addEventListener?.("change",syncMobileDockVisibility);
 document.querySelectorAll("[data-mobile-view]").forEach(button=>{
   button.addEventListener("click", ()=>{
     const view=button.dataset.mobileView;

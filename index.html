@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="Nello KPI" />
 <title>Nello KPI</title>
 
-<link rel="stylesheet" href="style.css" />
-<link rel="manifest" href="manifest.webmanifest" />
+<link rel="stylesheet" href="style.css?v=6" />
+<link rel="manifest" href="manifest.webmanifest?v=6" />
 <link rel="icon" type="image/png" sizes="192x192" href="app-icon-192.png" />
 <link rel="apple-touch-icon" href="app-icon-192.png" />
 </head>
@@ -46,11 +46,11 @@
 
       <div class="navTabs">
         <button id="tabInput" class="active" type="button">
-          <svg class="tabIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5h6M9 9h6M9 13h3"/><path d="M5 3h14v18H5z"/></svg>
+          <svg class="tabIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5h6M9 9h6M9 13h3"/><path d="M5 3h14v18H5z"/></svg>
           <span>Inserimento</span>
         </button>
         <button id="tabStats" type="button">
-          <svg class="tabIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg>
+          <svg class="tabIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg>
           <span>Statistiche</span>
         </button>
       </div>
@@ -59,7 +59,7 @@
     <div class="content">
       <div id="viewInput">
         <div class="introStrip">
-          <div class="introIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M22 12h-3"/></svg></div>
+          <div class="introIcon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M22 12h-3"/></svg></div>
           <div><strong>Aggiorna il tuo KPI</strong><span>Scegli canale e modalità: i dati vengono salvati automaticamente.</span></div>
           <button class="installAppBtn hidden" id="installAppBtn" type="button" aria-label="Installa Nello KPI sul dispositivo">Installa</button>
         </div>
@@ -241,7 +241,7 @@
   </div>
 </div>
 
-<nav class="mobileDock" aria-label="Navigazione principale">
+<nav class="mobileDock hidden" aria-label="Navigazione principale">
   <button type="button" data-mobile-view="input" class="active"><span aria-hidden="true">＋</span><small>Inserisci</small></button>
   <button type="button" data-mobile-view="stats"><span aria-hidden="true">⌁</span><small>Dashboard</small></button>
   <button type="button" data-mobile-view="history"><span aria-hidden="true">◷</span><small>Storico</small></button>
@@ -424,7 +424,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
-<script src="kpi-core.js"></script>
-<script src="app.js"></script>
+<script src="kpi-core.js?v=6"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
-const CACHE_NAME = "nello-kpi-v5";
+const CACHE_NAME = "nello-kpi-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css",
-  "./kpi-core.js",
-  "./app.js",
-  "./manifest.webmanifest",
+  "./style.css?v=6",
+  "./kpi-core.js?v=6",
+  "./app.js?v=6",
+  "./manifest.webmanifest?v=6",
   "./app-icon-192.png",
   "./app-icon-512.png",
   "./nello_ok.webp",
@@ -40,6 +40,22 @@ self.addEventListener("fetch", event=>{
           return response;
         })
         .catch(()=>caches.match("./index.html"))
+    );
+    return;
+  }
+
+  const isCriticalAsset=/\.(?:css|js|webmanifest)$/.test(url.pathname);
+  if(isCriticalAsset){
+    event.respondWith(
+      fetch(request)
+        .then(response=>{
+          if(response.ok){
+            const copy=response.clone();
+            caches.open(CACHE_NAME).then(cache=>cache.put(request,copy));
+          }
+          return response;
+        })
+        .catch(()=>caches.match(request))
     );
     return;
   }
