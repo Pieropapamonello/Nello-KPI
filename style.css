@@ -94,12 +94,12 @@ body{
 
 .title{min-width:0}
 .title h1{ margin:0; font-size:18px; font-weight:900; letter-spacing:.2px;}
-.title p{ margin:4px 0 0; font-size:12px; color:var(--muted);}
+.title p{ margin:4px 0 0; font-size:12px; color:var(--muted); display:flex; align-items:center; flex-wrap:wrap; gap:3px 8px; line-height:1.35;}
 .saveState{
   display:inline-flex;
   align-items:center;
   gap:4px;
-  margin-left:8px;
+  margin-left:0;
   color:#8f97ac;
   transition:color .2s ease;
 }
@@ -173,7 +173,11 @@ input, select{
   font-size:14px;
   outline:none;
 }
-select{appearance:none}
+select{appearance:none;color-scheme:dark;cursor:pointer}
+select option, select optgroup{
+  background:#211315;
+  color:#fff4f1;
+}
 input:focus, select:focus{
   border-color: hsla(var(--accent-h), var(--accent-s), var(--accent-l), .55);
   box-shadow: 0 0 0 4px hsla(var(--accent-h), var(--accent-s), var(--accent-l), .18);
@@ -549,9 +553,12 @@ button:focus{ outline: none; box-shadow: 0 10px 30px rgba(0,0,0,.22), 0 0 0 6px 
 
 .statCard{border:1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.03); border-radius:18px; padding:12px;}
 .statsHeading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.statsHeading > div{min-width:0;line-height:1.2}
+.statsHeadingCopy{display:flex;flex-direction:column;gap:5px}
 .statsHeading strong,.statsHeading span{display:block}
 .statsHeading strong{font-size:16px}
-.statsHeading div span{margin-top:4px;color:#9aa1b5;font-size:11px}
+.statsHeading div span{color:#9aa1b5;font-size:11px;line-height:1.4}
+#statsUser{max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
 .miniTable{width:100%; border-collapse:collapse; margin-top:10px; font-size:12px;}
 .miniTable th, .miniTable td{padding:8px 6px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; color:#d9def0;}
 .miniTable th{color:#aab0c0; font-weight:800}

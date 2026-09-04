@@ -1,4 +1,4 @@
-const CACHE_NAME = "nello-kpi-v1";
+const CACHE_NAME = "nello-kpi-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
