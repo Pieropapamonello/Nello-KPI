@@ -24,10 +24,10 @@
   <div class="card">
     <div class="top">
       <div class="header">
-        <div class="avatar"><img id="avatarImg" src="nello_ok.png" alt="Nello"></div>
+        <div class="avatar"><img id="avatarImg" src="nello_ok.webp" alt="Nello"></div>
         <div class="title">
           <h1>Nello KPI</h1>
-          <p><span id="userLine">Guest</span> <span class="saveState" id="saveState" aria-live="polite">Pronto</span></p>
+          <p><span id="userLine">Guest</span> <span class="saveState" id="saveState" aria-live="polite">Pronto</span><button class="retrySync hidden" id="retrySyncBtn" type="button" aria-label="Riprova sincronizzazione">↻</button></p>
         </div>
 
         <div class="right">
@@ -112,6 +112,8 @@
             <div><label>No</label><input id="m_no" type="number" min="0" step="1" value="0"></div>
             <div><label>Ric</label><input id="m_rec" type="number" min="0" step="1" value="0"></div>
           </div>
+          <div class="dataHelp"><strong>Cos’è “Ric”?</strong> È il numero di valutazioni rettificate: viene sottratto dai Sì. Non può superare i Sì.</div>
+          <div class="inputValidation hidden" id="inputValidation" role="alert"></div>
           <div class="quickEntry" aria-label="Inserimento rapido">
             <button type="button" data-quick-field="m_yes" aria-label="Aggiungi un Sì">+1 Sì</button>
             <button type="button" data-quick-field="m_no" aria-label="Aggiungi un No">+1 No</button>
@@ -174,7 +176,8 @@
                 <button class="btnTiny" id="sumToMonthBtn" type="button">➕ Somma W → mese</button>
               </div>
 
-              <div class="smallNote">Conversione reale: +1 Sì e −1 No nella settimana.</div>
+              <div class="dataHelp"><strong>Ric</strong> viene sottratto dai Sì della stessa settimana e non può essere maggiore dei Sì.</div>
+              <div class="inputValidation hidden" id="weeklyValidation" role="alert"></div>
             </div>
           </div>
         </div>
@@ -237,6 +240,13 @@
     </div>
   </div>
 </div>
+
+<nav class="mobileDock" aria-label="Navigazione principale">
+  <button type="button" data-mobile-view="input" class="active"><span aria-hidden="true">＋</span><small>Inserisci</small></button>
+  <button type="button" data-mobile-view="stats"><span aria-hidden="true">⌁</span><small>Dashboard</small></button>
+  <button type="button" data-mobile-view="history"><span aria-hidden="true">◷</span><small>Storico</small></button>
+  <button type="button" data-mobile-view="profile"><span aria-hidden="true">○</span><small>Profilo</small></button>
+</nav>
 
 
 <!-- HISTORY / BACKFILL MODAL -->
@@ -414,6 +424,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
+<script src="kpi-core.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

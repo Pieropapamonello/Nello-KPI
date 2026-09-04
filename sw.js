@@ -1,14 +1,15 @@
-const CACHE_NAME = "nello-kpi-v3";
+const CACHE_NAME = "nello-kpi-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
+  "./kpi-core.js",
   "./app.js",
   "./manifest.webmanifest",
   "./app-icon-192.png",
   "./app-icon-512.png",
-  "./nello_ok.png",
-  "./nello_angry.png"
+  "./nello_ok.webp",
+  "./nello_angry.webp"
 ];
 
 self.addEventListener("install", event=>{

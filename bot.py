@@ -76,8 +76,9 @@ TYPE_NAMES = {"yes": "Sì", "no": "No", "rec": "Recuperati"}
 # File dell'app web serviti dallo stesso servizio (whitelist: niente bot.py ecc.)
 WEB_DIR = Path(__file__).resolve().parent
 WEB_FILES = {
-    "index.html", "style.css", "app.js",
+    "index.html", "style.css", "kpi-core.js", "app.js",
     "nello.png", "nello_angry.png", "nello_ok.png",
+    "nello_angry.webp", "nello_ok.webp",
     "manifest.webmanifest", "sw.js",
     "app-icon-192.png", "app-icon-512.png",
 }

@@ -95,6 +95,7 @@ function setSaveState(label, state=""){
   if(!el) return;
   el.textContent = label;
   el.className = `saveState ${state}`.trim();
+  if(retrySyncBtn) retrySyncBtn.classList.toggle("hidden", state!=="error");
 }
 function scheduleCloudSave(){
   if(!isAuthed()) return;
@@ -114,9 +115,12 @@ async function saveCloudNow(){
     setSaveState("Sincronizzato", "saved");
   }catch(e){
     console.warn("Cloud save failed:", e);
-    setSaveState("Salvato offline", "saving");
+    setSaveState("Errore sincronizzazione", "error");
   }
 }
+
+window.addEventListener("online", ()=>{ if(isAuthed()) saveCloudNow(); });
+window.addEventListener("offline", ()=>setSaveState("Salvato offline", "saving"));
 
 async function syncFromCloud(){
   if(!isAuthed()) return;
@@ -210,6 +214,8 @@ const weeklySection  = document.getElementById("weeklySection");
 const m_yes = document.getElementById("m_yes");
 const m_no  = document.getElementById("m_no");
 const m_rec = document.getElementById("m_rec");
+const inputValidation = document.getElementById("inputValidation");
+const weeklyValidation = document.getElementById("weeklyValidation");
 
 function wEl(w,k){ return document.getElementById(`w${w}_${k}`); }
 // wBtn helper removed during cleanup.
@@ -287,6 +293,8 @@ const btnEmailLogin  = document.getElementById("btnEmailLogin");
 const btnEmailSignup = document.getElementById("btnEmailSignup");
 const btnResetPass   = document.getElementById("btnResetPass");
 const installAppBtn = document.getElementById("installAppBtn");
+const retrySyncBtn = document.getElementById("retrySyncBtn");
+if(retrySyncBtn) retrySyncBtn.addEventListener("click", ()=>saveCloudNow());
 const targetPill = document.getElementById("targetPill");
 const inlineTarget = document.getElementById("inlineTarget");
 const inlineTargetWrap = document.getElementById("inlineTargetWrap");
@@ -363,27 +371,7 @@ if("serviceWorker" in navigator){
 function clampInt(n){ if(!Number.isFinite(n)||n<0) return 0; return Math.floor(n); }
 function clampNum(n,min,max){ if(!Number.isFinite(n)) return min; return Math.min(max, Math.max(min,n)); }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
-function ratio(yes,no,rec){
-  const den = yes + no;
-  if(den <= 0) return null;
-  return (yes - rec) / den;
-}
-function neededYes(yes,no,rec,t){
-  const d0 = yes + no, n0 = yes - rec;
-  if(d0 <= 0) return 0;
-  if((n0/d0) >= t) return 0;
-  if(t >= 1) return Infinity;
-  const rhs = (t*d0) - n0;
-  return Math.max(0, Math.ceil((rhs/(1-t)) - 1e-12));
-}
-function neededNoToYes(yes,no,rec,t){
-  const d = yes + no, n = yes - rec;
-  if(d <= 0) return 0;
-  const k = (t*d) - n;
-  if(k <= 0) return 0;
-  return Math.min(no, Math.ceil(k - 1e-12));
-}
+const {ratio,neededYes,neededNoToYes,validateCounts}=NelloKpiMath;
 function getCurrentTargetPct(){
   if(channel){
     const stored = Number(getChannelObj(selectedYear, selectedMonth, channel).target);
@@ -543,8 +531,10 @@ document.addEventListener('click', (e)=>{
   const t = Date.now(); if(b._lastSnd && (t - b._lastSnd) < 50) return; b._lastSnd = t; tick();
 });
 
-// Pointer / touch trail (throttled, respects prefers-reduced-motion)
+// Effetto puntatore disattivato: interfaccia più calma e leggera su mobile.
 (function(){
+  const trailEnabled=false;
+  if(!trailEnabled) return;
   try{
     if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   }catch(e){}
@@ -591,49 +581,41 @@ function warn(){
 function setTab(name){
   tabInput.classList.toggle("active", name==="input");
   tabStats.classList.toggle("active", name==="stats");
-  // set aria-pressed for accessibility
   if(tabInput) tabInput.setAttribute('aria-pressed', name==='input' ? 'true' : 'false');
   if(tabStats) tabStats.setAttribute('aria-pressed', name==='stats' ? 'true' : 'false');
-
   viewInput.classList.toggle("hidden", name!=="input");
   viewStats.classList.toggle("hidden", name!=="stats");
-  // Il periodo resta sempre visibile: è contesto essenziale sia in inserimento sia nelle statistiche.
   const toolbarEl = document.querySelector('.toolbar'); if(toolbarEl) toolbarEl.style.display = '';
-
   if(name==="stats") renderStats();
   if(name==="input"){
-    // show only the channel choices (Telefono & Messaggistica) and hide all other extras for focus
-    const choiceEl = document.querySelector('#viewInput .choiceRow');
-    if(choiceEl){
-      // show the row and ensure the two channel buttons are visible and everything else in the row is hidden
-      choiceEl.style.display = '';
-      Array.from(choiceEl.children).forEach(ch=>{
-        if(ch.id === 'btnPhone' || ch.id === 'btnChat'){
-          ch.classList.remove('hidden'); ch.style.display = ''; ch.classList.remove('hideOut');
-        }else{
-          ch.classList.add('hidden');
-        }
-      });
-    }
-
-    if(inlineTargetWrap){ inlineTargetWrap.classList.add('hidden'); inlineTargetWrap.classList.remove('showInlineWrap'); inlineTargetWrap.setAttribute('aria-hidden','true'); }
-    if(sectionCanale){ sectionCanale.classList.remove('hidden'); }
-
-    // hide mode selection and data sections so only channel choices show
-    if(stepMode) stepMode.classList.add('hidden');
-    if(monthlySection) monthlySection.classList.add('hidden');
-    if(weeklySection) { weeklySection.classList.add('hidden'); weeklyAccordion.classList.remove('open'); if(accChevron) accChevron.textContent = '▾'; }
-    // reset active state for month/week buttons
-    if(btnMonthly) { btnMonthly.classList.remove('active'); btnMonthly.setAttribute('aria-pressed','false'); }
-    if(btnWeekly) { btnWeekly.classList.remove('active'); btnWeekly.setAttribute('aria-pressed','false'); }
-
-    // restore monthly reset/sum buttons for when user progresses past channel
-    if(resetMonthlyBtn) resetMonthlyBtn.classList.remove('hidden');
-    if(sumWeeksToMonthBtn) sumWeeksToMonthBtn.classList.remove('hidden');
+    if(sectionCanale) sectionCanale.classList.remove('hidden');
+    const choiceEl=document.querySelector('#sectionCanale .choiceRow');
+    if(choiceEl) choiceEl.style.display='';
   }
+  updateMobileDock(name);
 }
 tabInput.addEventListener("click", ()=>{ tick(); setTab("input"); });
 tabStats.addEventListener("click", ()=>{ tick(); setTab("stats"); });
+
+function updateMobileDock(active){
+  document.querySelectorAll("[data-mobile-view]").forEach(button=>button.classList.toggle("active",button.dataset.mobileView===active));
+}
+document.querySelectorAll("[data-mobile-view]").forEach(button=>{
+  button.addEventListener("click", ()=>{
+    const view=button.dataset.mobileView;
+    if(view==="input" || view==="stats"){
+      setTab(view);
+      window.scrollTo({top:0,behavior:"smooth"});
+    }else if(view==="history"){
+      setTab("stats");
+      updateMobileDock("history");
+      setTimeout(()=>document.querySelector(".monthList,.emptyState")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+    }else if(view==="profile"){
+      updateMobileDock("profile");
+      showModal();
+    }
+  });
+});
 
 // Initialize accessible pressed states for buttons and add transient press feedback
 (function(){
@@ -717,7 +699,7 @@ function resetSteps(){
   weeklySection.classList.add("hidden");
   calcBtn.classList.add("hidden");
   resultBox.classList.add("hidden");
-  avatarImg.src="nello_ok.png";
+  avatarImg.src="nello_ok.webp";
 }
 
 btnPhone.addEventListener("click", ()=>{
@@ -777,13 +759,11 @@ if(inlineTarget){
     chObj.target = clampNum(v,0,100);
     saveData();
 
-    // hide choices, keep only insertion mode selection
-    const choiceEl = document.querySelector('#viewInput .choiceRow'); if(choiceEl) choiceEl.style.display = 'none';
-    if(inlineTargetWrap){ inlineTargetWrap.classList.add('hidden'); inlineTargetWrap.classList.remove('showInlineWrap'); inlineTargetWrap.setAttribute('aria-hidden','true'); if(inlineTarget) inlineTarget.value=''; }
-    if(sectionCanale){ sectionCanale.classList.add('hidden'); }
+    // Canale e target restano visibili e modificabili durante l'inserimento.
+    if(sectionCanale) sectionCanale.classList.add('completed');
     stepMode.classList.remove('hidden');
-    if(resetMonthlyBtn) resetMonthlyBtn.classList.add('hidden');
-    if(sumWeeksToMonthBtn) sumWeeksToMonthBtn.classList.add('hidden');
+    if(resetMonthlyBtn) resetMonthlyBtn.classList.remove('hidden');
+    if(sumWeeksToMonthBtn) sumWeeksToMonthBtn.classList.remove('hidden');
     monthlySection.classList.add('hidden');
     weeklySection.classList.add('hidden');
     calcBtn.classList.remove('hidden');
@@ -915,6 +895,27 @@ function loadIntoInputs(){
     wEl(i+1,"rec").value = v.rec ?? 0;
   }
   updateWeekButtons();
+  updateValidationUI();
+}
+
+function updateValidationUI(){
+  const monthlyCheck=validateCounts(Number(m_yes.value),Number(m_no.value),Number(m_rec.value));
+  let weeklyMessage="";
+  for(const w of weeks){
+    const check=validateCounts(Number(wEl(w,"yes").value),Number(wEl(w,"no").value),Number(wEl(w,"rec").value));
+    if(!check.valid){ weeklyMessage=`Settimana ${w}: ${check.message}`; break; }
+  }
+  if(inputValidation){
+    inputValidation.textContent=monthlyCheck.message;
+    inputValidation.classList.toggle("hidden",monthlyCheck.valid);
+  }
+  if(weeklyValidation){
+    weeklyValidation.textContent=weeklyMessage;
+    weeklyValidation.classList.toggle("hidden",!weeklyMessage);
+  }
+  const valid=mode==="weekly" ? !weeklyMessage : monthlyCheck.valid;
+  if(calcBtn) calcBtn.disabled=!valid;
+  return valid;
 }
 
 function saveFromInputs(){
@@ -923,6 +924,7 @@ function saveFromInputs(){
 
   if(inlineTarget && inlineTarget.value !== "") chObj.target = clampNum(Number(inlineTarget.value), 0, 100);
   if(mode) chObj.mode = mode;
+  if(!updateValidationUI()) return false;
 
   chObj.monthly = {
     yes: clampInt(Number(m_yes.value)),
@@ -937,10 +939,12 @@ function saveFromInputs(){
   }));
 
   saveData();
+  return true;
 }
 
 [m_yes,m_no,m_rec].forEach(el=>el.addEventListener("input", ()=>{
-  saveFromInputs();
+  const valid=saveFromInputs();
+  if(valid===false) return;
   updateMiniKpi();
   if(!resultBox.classList.contains("hidden")){
     renderResult(false);
@@ -986,7 +990,8 @@ for(const w of weeks){
   for(const k of ["yes","no","rec"]){
     wEl(w,k).addEventListener("input", ()=>{
       updateWeekButtons();
-      saveFromInputs();
+      const valid=saveFromInputs();
+      if(valid===false) return;
       updateMiniKpi();
       // show live result immediately when editing weekly data
       if(mode === "weekly"){
@@ -1139,7 +1144,7 @@ function renderResult(triggerFx=false){
     barText.textContent="—";
     kpisEl.style.display="none";
     kpisEl.innerHTML="";
-    avatarImg.src="nello_ok.png";
+    avatarImg.src="nello_ok.webp";
     lastHit=false;
     return;
   }
@@ -1156,7 +1161,7 @@ function renderResult(triggerFx=false){
     barText.textContent="—";
     kpisEl.style.display="none";
     kpisEl.innerHTML="";
-    avatarImg.src="nello_ok.png";
+    avatarImg.src="nello_ok.webp";
     lastHit=false;
     return;
   }
@@ -1171,7 +1176,7 @@ function renderResult(triggerFx=false){
     barText.textContent="Target non impostato";
     kpisEl.style.display="none";
     kpisEl.innerHTML="";
-    avatarImg.src="nello_ok.png";
+    avatarImg.src="nello_ok.webp";
     lastHit=false;
     return;
   }
@@ -1184,18 +1189,18 @@ function renderResult(triggerFx=false){
   if(hit){
     percentEl.className="percent ok";
     messageEl.textContent="In obiettivo 🎉";
-    avatarImg.src="nello_ok.png";
+    avatarImg.src="nello_ok.webp";
   }else{
     percentEl.className="percent warn";
     messageEl.textContent=pick(frasiNegative);
-    avatarImg.src="nello_angry.png";
+    avatarImg.src="nello_angry.webp";
   }
 
   const addYes = neededYes(data.yes, data.no, data.rec, t);
   const conv   = neededNoToYes(data.yes, data.no, data.rec, t);
 
   kpisEl.style.display="grid";
-  kpisEl.innerHTML = hit ? `
+  const recoveryHtml = hit ? `
     <div class="kpiBox si">
       <div class="kpiTitle">SÌ per Obiettivo</div>
       <div class="kpiValue si">0</div>
@@ -1218,6 +1223,17 @@ function renderResult(triggerFx=false){
       <div class="kpiSub">Conversioni necessarie</div>
     </div>
   `;
+  const today=new Date();
+  const isCurrentPeriod=selectedYear===String(today.getFullYear()) && selectedMonth===pad2(today.getMonth()+1);
+  const daysLeft=isCurrentPeriod ? Math.max(1,new Date(today.getFullYear(),today.getMonth()+1,0).getDate()-today.getDate()+1) : 0;
+  const weeksLeft=Math.max(1,Math.ceil(daysLeft/7));
+  const weeklyPace=hit ? 0 : addYes===Infinity ? null : Math.ceil(addYes/weeksLeft);
+  const paceHtml=`<div class="kpiBox pace">
+    <div class="kpiTitle">Ritmo consigliato</div>
+    <div class="kpiValue pace">${isCurrentPeriod ? (weeklyPace===null ? "—" : weeklyPace) : "—"}</div>
+    <div class="kpiSub">${isCurrentPeriod ? (hit ? "Mantieni la qualità attuale" : `Sì a settimana per ${weeksLeft} sett.`) : "Disponibile sul mese corrente"}</div>
+  </div>`;
+  kpisEl.innerHTML=recoveryHtml+paceHtml;
 
   if(triggerFx){
     if(hit && !lastHit) celebrate();
@@ -1408,6 +1424,8 @@ function summarizeYear(monthsObj, chKey){
 }
 
 const MONTH_KEYS = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+let statsRange=12;
+let statsShowAll=false;
 
 function channelTrend(monthsObj, chKey){
   return MONTH_KEYS.map(mk=>{
@@ -1439,18 +1457,22 @@ function renderTrendInsights(trend){
   const hit = valid.filter(item=>item.target !== null && item.value>=item.target).length;
   const deltaClass = delta === null ? "" : delta >= 0 ? "positive" : "negative";
   const deltaText = delta === null ? "—" : `${delta>=0?"+":""}${delta.toFixed(1)} pt`;
+  const recent=valid.slice(-4).map(item=>item.value);
+  const changes=recent.slice(1).map((value,index)=>value-recent[index]);
+  const projected=changes.length ? clampNum(latest.value+(changes.reduce((a,b)=>a+b,0)/changes.length),0,1) : latest.value;
 
   return `<div class="insightGrid" aria-label="Indicatori sintetici">
     <div class="insightCard"><div class="insightLabel">Ultimo dato</div><div class="insightValue">${pctStr(latest.value)}</div><div class="insightNote">${monthLabel(latest.month)}</div></div>
     <div class="insightCard"><div class="insightLabel">Variazione</div><div class="insightValue ${deltaClass}">${deltaText}</div><div class="insightNote">rispetto al dato precedente</div></div>
     <div class="insightCard"><div class="insightLabel">Miglior mese</div><div class="insightValue">${pctStr(best.value)}</div><div class="insightNote">${monthLabel(best.month)} · ${hit}/${valid.length} in target</div></div>
+    <div class="insightCard forecast"><div class="insightLabel">Trend stimato</div><div class="insightValue">${pctStr(projected)}</div><div class="insightNote">proiezione basata sugli ultimi mesi</div></div>
   </div>`;
 }
 
-function svgSeries(items, cssClass, width, height, pad){
+function svgSeries(items, cssClass, width, height, pad, options={}){
   const plotW = width-pad.left-pad.right;
   const plotH = height-pad.top-pad.bottom;
-  const x = i=>pad.left+(plotW*i/11);
+  const x = i=>pad.left+(plotW*i/Math.max(1,items.length-1));
   const y = value=>pad.top+plotH-(clampNum(value*100,0,100)/100)*plotH;
   const segments = [];
   let current = [];
@@ -1460,31 +1482,65 @@ function svgSeries(items, cssClass, width, height, pad){
   });
   if(current.length) segments.push(current);
   const lines = segments.map(points=>`<polyline class="chartLine ${cssClass}" points="${points.join(" ")}"/>`).join("");
-  const targets = items.map((item,index)=>item.value===null ? null : `${x(index).toFixed(1)},${y(item.target).toFixed(1)}`).filter(Boolean);
+  const targets = options.showTarget===false ? [] : items.map((item,index)=>item.value===null ? null : `${x(index).toFixed(1)},${y(item.target).toFixed(1)}`).filter(Boolean);
   const targetLine = targets.length ? `<polyline class="chartTarget ${cssClass}" points="${targets.join(" ")}"/>` : "";
-  const dots = items.map((item,index)=>item.value===null ? "" : `<circle class="chartDot ${cssClass}" cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="5"><title>${monthLabel(item.month)}: ${(item.value*100).toFixed(2)}% · target ${(item.target*100).toFixed(1)}%</title></circle>`).join("");
+  const dots = options.dots===false ? "" : items.map((item,index)=>item.value===null ? "" : `<circle tabindex="0" role="button" class="chartDot ${cssClass}" cx="${x(index).toFixed(1)}" cy="${y(item.value).toFixed(1)}" r="6" data-chart-label="${options.label||"KPI"}" data-chart-month="${monthLabel(item.month)}" data-chart-value="${(item.value*100).toFixed(2)}%" data-chart-target="${item.target===null?"—":(item.target*100).toFixed(1)+"%"}"><title>${monthLabel(item.month)}: ${(item.value*100).toFixed(2)}%</title></circle>`).join("");
   return targetLine+lines+dots;
 }
 
-function renderTrendChart(phone, chat, filter, year){
+function renderTrendChart(phone, chat, previous, filter, year, range){
   const hasPhone = phone.some(item=>item.value!==null);
   const hasChat = chat.some(item=>item.value!==null);
   if(!hasPhone && !hasChat) return "";
+  const lastIndex=Math.max(
+    filter!=="chat" ? phone.reduce((last,item,index)=>item.value!==null?index:last,-1) : -1,
+    filter!=="phone" ? chat.reduce((last,item,index)=>item.value!==null?index:last,-1) : -1
+  );
+  const end=lastIndex<0?11:lastIndex;
+  const start=Math.max(0,end-range+1);
+  phone=phone.slice(start,end+1);
+  chat=chat.slice(start,end+1);
+  previous=previous.slice(start,end+1);
   const width=720, height=280, pad={left:42,right:18,top:18,bottom:38};
   const plotH=height-pad.top-pad.bottom;
   const grid=[0,25,50,75,100].map(value=>{
     const y=pad.top+plotH-(value/100)*plotH;
     return `<line class="chartGrid" x1="${pad.left}" y1="${y}" x2="${width-pad.right}" y2="${y}"/><text class="chartAxis" x="${pad.left-8}" y="${y+4}" text-anchor="end">${value}%</text>`;
   }).join("");
-  const labels=MONTH_KEYS.map((mk,index)=>{
-    const x=pad.left+((width-pad.left-pad.right)*index/11);
+  const visibleMonths=MONTH_KEYS.slice(start,end+1);
+  const labels=visibleMonths.map((mk,index)=>{
+    const x=pad.left+((width-pad.left-pad.right)*index/Math.max(1,visibleMonths.length-1));
     return `<text class="chartAxis" x="${x}" y="${height-12}" text-anchor="middle">${monthLabel(mk).slice(0,3)}</text>`;
   }).join("");
   const showPhone = filter!=="chat" && hasPhone;
   const showChat = filter!=="phone" && hasChat;
-  const series=(showPhone?svgSeries(phone,"phone",width,height,pad):"")+(showChat?svgSeries(chat,"chat",width,height,pad):"");
-  const legend=(showPhone?'<span><i class="phone"></i>Telefono</span>':"")+(showChat?'<span><i class="chat"></i>Messaggistica</span>':"")+'<span><i class="target"></i>Target</span>';
-  return `<section class="trendCard"><div class="trendHeader"><div><strong>Andamento ${year}</strong><span>Tocca i punti per leggere KPI e obiettivo</span></div><div class="trendLegend">${legend}</div></div><div class="chartScroller"><svg class="trendChart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafico andamento KPI mensile ${year}">${grid}${labels}${series}</svg></div></section>`;
+  const hasPrevious=previous.some(item=>item.value!==null);
+  const series=(hasPrevious?svgSeries(previous,"previous",width,height,pad,{showTarget:false,dots:false}):"")+(showPhone?svgSeries(phone,"phone",width,height,pad,{label:"Telefono"}):"")+(showChat?svgSeries(chat,"chat",width,height,pad,{label:"Messaggistica"}):"");
+  const legend=(showPhone?'<span><i class="phone"></i>Telefono</span>':"")+(showChat?'<span><i class="chat"></i>Messaggistica</span>':"")+(hasPrevious?`<span><i class="previous"></i>${Number(year)-1}</span>`:"")+'<span><i class="target"></i>Target</span>';
+  const rangeButtons=[3,6,12].map(value=>`<button type="button" class="rangeBtn ${range===value?"active":""}" data-chart-range="${value}">${value}M</button>`).join("");
+  return `<section class="trendCard"><div class="trendHeader"><div><strong>Andamento ${year}</strong><span>Tocca i punti per leggere KPI e obiettivo</span></div><div class="chartTools"><div class="rangePicker" aria-label="Intervallo grafico">${rangeButtons}</div><div class="trendLegend">${legend}</div></div></div><div class="chartScroller"><svg class="trendChart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafico andamento KPI mensile ${year}">${grid}${labels}${series}</svg></div><div class="chartTooltip hidden" role="status"></div></section>`;
+}
+
+function bindChartInteractions(){
+  const card=statsGrid.querySelector(".trendCard");
+  const tooltip=card?.querySelector(".chartTooltip");
+  if(!card || !tooltip) return;
+  const show=point=>{
+    const cardRect=card.getBoundingClientRect();
+    const pointRect=point.getBoundingClientRect();
+    tooltip.innerHTML=`<strong>${point.dataset.chartLabel} · ${point.dataset.chartMonth}</strong><span>KPI ${point.dataset.chartValue}</span><small>Target ${point.dataset.chartTarget}</small>`;
+    tooltip.style.left=`${pointRect.left-cardRect.left+(pointRect.width/2)}px`;
+    tooltip.style.top=`${pointRect.top-cardRect.top-8}px`;
+    tooltip.classList.remove("hidden");
+  };
+  card.querySelectorAll("[data-chart-value]").forEach(point=>{
+    point.addEventListener("pointerenter",()=>show(point));
+    point.addEventListener("focus",()=>show(point));
+    point.addEventListener("click",event=>{event.stopPropagation();show(point);});
+    point.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();show(point);}});
+  });
+  card.addEventListener("pointerleave",()=>tooltip.classList.add("hidden"));
+  document.addEventListener("click",event=>{if(!card.contains(event.target)) tooltip.classList.add("hidden");},{once:true});
 }
 
 function renderStats(){
@@ -1500,6 +1556,8 @@ function renderStats(){
   const phoneTrend = channelTrend(monthsObj, "phone");
   const chatTrend = channelTrend(monthsObj, "chat");
   const selectedTrend = combinedTrend(phoneTrend, chatTrend, filter);
+  const previousMonths=DATA.years?.[String(Number(y)-1)]?.months || {};
+  const previousTrend=combinedTrend(channelTrend(previousMonths,"phone"),channelTrend(previousMonths,"chat"),filter);
 
   function fmtTarget(t){
     const v = Math.round(t * 1000) / 10;
@@ -1569,7 +1627,7 @@ function renderStats(){
     </div>`;
   }
 
-  const monthCards = MONTH_KEYS.map(mk=>{
+  const allMonthCards = MONTH_KEYS.map(mk=>{
     const mo = monthsObj[mk];
     const pObj = mo?.channels?.phone;
     const cObj = mo?.channels?.chat;
@@ -1594,14 +1652,16 @@ function renderStats(){
       </div>
       ${blocks}
     </div>`;
-  }).join("");
+  }).filter(Boolean).reverse();
 
-  const listHtml = monthCards.trim()
-    ? `<div class="monthList">${monthCards}</div>`
+  const visibleMonthCards=statsShowAll ? allMonthCards : allMonthCards.slice(0,3);
+  const monthToggle=allMonthCards.length>3 ? `<button class="monthToggle" type="button" data-toggle-months>${statsShowAll?"Mostra solo gli ultimi 3":"Vedi tutti i mesi"}<span aria-hidden="true">${statsShowAll?"↑":"↓"}</span></button>` : "";
+  const listHtml = allMonthCards.length
+    ? `<div class="monthList">${visibleMonthCards.join("")}</div>${monthToggle}`
     : `<div class="emptyState"><strong>Inizia a costruire il tuo andamento</strong><span>Non ci sono ancora dati per questi filtri. Inserisci un mese e il grafico si aggiornerà subito.</span><button class="btnTiny" type="button" data-empty-add>Aggiungi il primo mese</button></div>`;
 
   const insightsHtml = renderTrendInsights(selectedTrend);
-  const chartHtml = renderTrendChart(phoneTrend, chatTrend, filter, y);
+  const chartHtml = renderTrendChart(phoneTrend, chatTrend, previousTrend, filter, y, statsRange);
   statsGrid.innerHTML = summaryHtml + insightsHtml + chartHtml + listHtml;
   // bind edit buttons (open backfill modal prefilled)
   statsGrid.querySelectorAll(".miniEdit").forEach(btn=>{
@@ -1612,9 +1672,13 @@ function renderStats(){
   });
   const emptyAdd = statsGrid.querySelector("[data-empty-add]");
   if(emptyAdd) emptyAdd.addEventListener("click", openHistoryModal);
+  const monthToggleButton=statsGrid.querySelector("[data-toggle-months]");
+  if(monthToggleButton) monthToggleButton.addEventListener("click",()=>{statsShowAll=!statsShowAll;renderStats();});
+  statsGrid.querySelectorAll("[data-chart-range]").forEach(button=>button.addEventListener("click",()=>{statsRange=Number(button.dataset.chartRange);renderStats();}));
+  bindChartInteractions();
 }
-statsChannel.addEventListener("change", ()=>{ tick(); renderStats(); });
-statsYear.addEventListener("change", ()=>{ tick(); renderStats(); });
+statsChannel.addEventListener("change", ()=>{ tick(); statsShowAll=false; renderStats(); });
+statsYear.addEventListener("change", ()=>{ tick(); statsShowAll=false; renderStats(); });
 
 
 /* =========================================================
@@ -1875,7 +1939,10 @@ function showModal(){
   loginError.textContent="";
   modalOverlay.style.display="flex";
 }
-function hideModal(){ modalOverlay.style.display="none"; }
+function hideModal(){
+  modalOverlay.style.display="none";
+  updateMobileDock(viewStats.classList.contains("hidden") ? "input" : "stats");
+}
 
 loginBtn.addEventListener("click", async ()=>{
   if(currentUser.uid !== "guest"){
