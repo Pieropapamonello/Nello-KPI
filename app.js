@@ -1425,7 +1425,7 @@ function summarizeYear(monthsObj, chKey){
 
 const MONTH_KEYS = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 let statsRange=12;
-let statsShowAll=false;
+let statsShowAll=true;
 
 function channelTrend(monthsObj, chKey){
   return MONTH_KEYS.map(mk=>{
@@ -1657,7 +1657,7 @@ function renderStats(){
   const visibleMonthCards=statsShowAll ? allMonthCards : allMonthCards.slice(0,3);
   const monthToggle=allMonthCards.length>3 ? `<button class="monthToggle" type="button" data-toggle-months>${statsShowAll?"Mostra solo gli ultimi 3":"Vedi tutti i mesi"}<span aria-hidden="true">${statsShowAll?"↑":"↓"}</span></button>` : "";
   const listHtml = allMonthCards.length
-    ? `<div class="monthList">${visibleMonthCards.join("")}</div>${monthToggle}`
+    ? `<div class="historySectionHead"><strong>Storico mensile</strong><span>${allMonthCards.length} ${allMonthCards.length===1?"mese disponibile":"mesi disponibili"}</span></div><div class="monthList">${visibleMonthCards.join("")}</div>${monthToggle}`
     : `<div class="emptyState"><strong>Inizia a costruire il tuo andamento</strong><span>Non ci sono ancora dati per questi filtri. Inserisci un mese e il grafico si aggiornerà subito.</span><button class="btnTiny" type="button" data-empty-add>Aggiungi il primo mese</button></div>`;
 
   const insightsHtml = renderTrendInsights(selectedTrend);
@@ -1677,8 +1677,8 @@ function renderStats(){
   statsGrid.querySelectorAll("[data-chart-range]").forEach(button=>button.addEventListener("click",()=>{statsRange=Number(button.dataset.chartRange);renderStats();}));
   bindChartInteractions();
 }
-statsChannel.addEventListener("change", ()=>{ tick(); statsShowAll=false; renderStats(); });
-statsYear.addEventListener("change", ()=>{ tick(); statsShowAll=false; renderStats(); });
+statsChannel.addEventListener("change", ()=>{ tick(); statsShowAll=true; renderStats(); });
+statsYear.addEventListener("change", ()=>{ tick(); statsShowAll=true; renderStats(); });
 
 
 /* =========================================================
