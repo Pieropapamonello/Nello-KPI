@@ -1,5 +1,7 @@
 """Run against a local static server; external requests are blocked."""
 from playwright.sync_api import sync_playwright
+import tempfile
+from pathlib import Path
 
 with sync_playwright() as p:
     browser = p.chromium.launch(channel="chrome", headless=True)
@@ -9,6 +11,7 @@ with sync_playwright() as p:
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.route("**/*", lambda route: route.continue_() if route.request.url.startswith("http://127.0.0.1:8765/") else route.abort())
         page.goto("http://127.0.0.1:8765/")
+        page.wait_for_function("typeof defaultData === 'function' && document.querySelector('.recoveryDialog') !== null")
         assert not errors, errors
         page.evaluate("""() => {
           DATA=defaultData();
@@ -20,6 +23,10 @@ with sync_playwright() as p:
         }""")
         page.locator("#tabStats").click()
         assert page.locator(".monthCard").count() == 9
+        screenshot = Path(tempfile.gettempdir()) / f"nello-dashboard-{width}.png"
+        page.screenshot(path=str(screenshot), full_page=True, animations="disabled")
+        page.screenshot(path=str(screenshot.with_name(f"nello-viewport-{width}.png")), animations="disabled")
+        print(f"Screenshot: {screenshot}", flush=True)
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Horizontal overflow"
         if width > 1050:
             summary = page.locator(".statsSummary").bounding_box()

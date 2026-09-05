@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap');
+/* System typography remains available when the installed app is offline. */
 
 :root{
   --bg0:#0b0302; --bg1:#170506;
@@ -1291,6 +1291,88 @@ button:disabled{opacity:.42;cursor:not-allowed;filter:saturate(.5)}
 
 .mobileDock{display:none}
 @media (min-width:680px){.insightGrid{grid-template-columns:repeat(4,1fr)}}
+
+/* Visual refresh: calm surfaces, a clear reading order, restrained accents. */
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(ellipse at 0 0,#123139 0,transparent 45%),#0b1018;color:#f0f5fa}
+body::before{display:none}
+.card{background:#101824;border-color:#293748;box-shadow:0 24px 80px #0004}
+.top{background:#111c29;border-bottom-color:#2a3848;padding-top:24px;padding-bottom:20px}
+.avatar{box-shadow:none;background:#5fe1cf}
+.title h1{font-size:23px;font-weight:750;letter-spacing:-.6px}
+.title p{font-size:12px;line-height:1.6}
+.title p #userLine{overflow-wrap:anywhere}
+.navTabs{background:#0c1420;box-shadow:none}
+.navTabs button{font-size:14px;font-weight:650;color:#b1c0d0}
+.navTabs button.active{background:#74ead5;color:#092b2a;box-shadow:none}
+.navTabs button:hover{transform:none}
+.content{padding-top:30px;padding-bottom:32px}
+.statsEyebrow{font-size:11px;letter-spacing:1.8px;color:#74ead5;font-weight:650}
+.statsHeadingCopy>strong{font-size:34px;line-height:1.2;font-weight:700;letter-spacing:-1px;margin:6px 0 8px}
+.statsHeadingCopy>span:last-child{font-size:14px;line-height:1.6;color:#b0bdce}
+.section,.summaryCard,.monthCard,.insightCard,.trendCard{background:#162230;border:1px solid #314154;box-shadow:none}
+.sectionTitle{color:#b1c1d0;font-size:11px;font-weight:650;letter-spacing:1.3px}
+label{color:#bac8d7;font-size:12px}
+input,select{background-color:#0f1926;border-color:#354659;font-size:14px;font-weight:500;color:#f1f6fc;border-radius:10px}
+.summaryCard{padding:22px;border-radius:18px}
+.summaryCard::before{display:none}
+.summaryTop{display:block}
+.summaryTop .name{max-width:none;font-size:14px;font-weight:550;color:#c6d2df}
+.summaryTop>div:last-child{margin-top:14px}
+.summaryTop .kpi{font-size:38px;font-weight:700;line-height:1.15;letter-spacing:-1.4px;color:#78e8d4}
+.summaryMeta{font-size:12px;color:#b1bfce;line-height:1.7}
+.summaryMeta b{font-weight:600}
+.trendCard{padding:22px;border-radius:18px;background:linear-gradient(155deg,#192b36,#152130)}
+.trendHeader strong{font-size:18px;font-weight:650}
+.trendHeader small,.trendHeader p,.trendLegend{color:#bac8d7}
+.chartAxis{fill:#afc1d3;font-size:11px}
+.chartGrid{stroke:#ffffff12}.chartLine.phone{stroke:#70e3d0;filter:none}.chartLine.chat{stroke:#a8adff;filter:none}
+.insightCard{padding:20px;border-radius:16px}
+.insightLabel{font-size:10px;color:#bdcbd9;letter-spacing:1.2px;font-weight:600}
+.insightValue{margin:10px 0 6px;font-size:29px;font-weight:700;letter-spacing:-.8px}
+.insightNote{font-size:12px;color:#acbdcf;line-height:1.5}
+.historySectionHead strong{font-size:22px;font-weight:650;letter-spacing:-.5px}
+.historySectionHead span{color:#b2c0d0;font-size:12px}
+.monthCard{border-radius:18px;padding:20px}
+.monthName{font-size:17px;font-weight:650}
+.monthBlocks{margin-top:16px;gap:12px}
+.block{background:#101b28;border:1px solid #2a3b4c;border-radius:12px;padding:14px}
+.blockTop .label{font-size:13px;font-weight:600;color:#d1dce8}
+.blockKpi{font-size:27px;letter-spacing:-.6px;font-weight:650}
+.blockMeta{font-size:12px;line-height:1.7;color:#abbfd1}
+.btnTiny{font-weight:600;box-shadow:none;border-color:#3c5065;color:#d2dfed}
+.btn.secondary{background:#203547;border-color:#3d586e;font-weight:600;color:#e0ebf6;box-shadow:none}
+.miniEdit{border-color:#41586f;background:#223449;color:#e2f3ff}
+.monthToggle{color:#c5d4e4;border-color:#344659;min-height:44px}
+:is(button,input,select):focus-visible{outline:3px solid #85eee0;outline-offset:3px}
+@media(min-width:1050px){
+  .top{display:grid;grid-template-columns:1fr 1fr auto;gap:20px;align-items:end}
+  .header{grid-column:1/-1}.toolbar,.navTabs{margin:0}.top>.btnTiny{margin:0;min-height:46px}
+  .statsHeading{margin-bottom:24px}
+  #viewStats .statCard>.section{display:flex;align-items:end;gap:18px;padding:16px 20px;margin-bottom:24px}
+  #viewStats .statCard>.section>.sectionTitle{display:none}
+  #viewStats .statCard>.section>.row2{flex:1}
+  #viewStats .statCard>.section>.grid1{flex:0 0 260px}
+  #viewStats .statCard>.section .btn{min-height:46px;font-size:13px}
+}
+@media(max-width:600px){
+  .top{padding:18px 16px}.content{padding:22px 16px}.card{border-radius:0}
+  .statsHeadingCopy>strong{font-size:28px}.statsHeadingCopy>span:last-child{font-size:13px}
+  .summaryCard{padding:17px}.summaryTop .kpi{font-size:30px}
+  .summaryTop .name{font-size:13px}.summaryMeta{font-size:11px}
+  .statsSummary.two{grid-template-columns:1fr}
+  .statsSummary.two .summaryTop{display:flex;gap:12px;align-items:center}
+  .statsSummary.two .summaryTop>div:last-child{margin-top:0}
+  .insightGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.insightCard{padding:15px}.insightValue{font-size:24px}
+  .monthCard{padding:16px}.blockKpi{font-size:25px}.blockTop .label{font-size:12px}
+  .historySectionHead{align-items:center}.historySectionHead strong{font-size:20px}
+  .historySectionHead span{font-size:11px;text-align:right}
+}
+@media(min-width:360px) and (max-width:600px){
+  .monthBlocks.two{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .monthBlocks.two .block{padding:11px;min-width:0}
+  .monthBlocks.two .blockTop{flex-wrap:wrap;gap:6px}
+  .monthBlocks.two .blockMeta{font-size:11px}
+}
 
 @media (max-width:600px){
   body{padding-bottom:76px}
