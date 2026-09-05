@@ -78,20 +78,45 @@ function sanitizeData(obj){
 
 let cloudHydrated = false;
 let cloudBaseUpdatedAtMs = null;
+let cloudBaseData = null;
+let cloudWriteInFlight = false;
+function dataFingerprint(value){
+  return JSON.stringify(value, (_key, item)=>{
+    if(item && typeof item === "object" && !Array.isArray(item)){
+      return Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]]));
+    }
+    return item;
+  });
+}
+function pendingKey(){ return storeKey() + "_pending"; }
+function hasPendingData(){ return localStorage.getItem(pendingKey()) !== null; }
+function readRecoveryCopies(){
+  try{ return JSON.parse(localStorage.getItem(storeKey()+"_backups") || "[]"); }
+  catch(e){ return []; }
+}
+function preserveRecoveryCopy(data, label){
+  if(!data?.years) return;
+  const copies = readRecoveryCopies();
+  if(copies[0] && dataFingerprint(copies[0].data) === dataFingerprint(data)) return;
+  copies.unshift({at:new Date().toISOString(),label,data});
+  // Separate key: recovery never replaces the active data or pending changes.
+  localStorage.setItem(storeKey()+"_backups",JSON.stringify(copies.slice(0,12)));
+}
 
 async function loadCloudData(){
   if(!isAuthed()) return { found:false };
   try{
-    const snap = await userDocRef().get();
+    const snap = await userDocRef().get({ source:"server" });
     if(snap.exists){
       const d = snap.data();
-      if(d && d.data){
+      if(d?.data?.years && typeof d.data.years === "object"){
         return {
           found:true,
           data:sanitizeData(d.data),
           updatedAtMs:d.updatedAt?.toMillis?.() ?? null
         };
       }
+      throw new Error("INVALID_CLOUD_DATA");
     }
     return { found:false };
   }catch(e){
@@ -118,32 +143,46 @@ function scheduleCloudSave(){
 
 async function saveCloudNow(){
   if(!isAuthed() || !cloudHydrated) return;
+  if(cloudWriteInFlight){ scheduleCloudSave(); return; }
+  cloudWriteInFlight = true;
+  const savingUid = currentUser.uid;
+  const savingKey = storeKey();
+  const snapshot = JSON.parse(JSON.stringify(DATA));
+  const expectedData = cloudBaseData;
   try{
     const ref = userDocRef();
     await db.runTransaction(async transaction=>{
       const snap = await transaction.get(ref);
       const previous = snap.exists ? snap.data() : null;
-      const remoteUpdatedAtMs = previous?.updatedAt?.toMillis?.() ?? null;
-      if(cloudBaseUpdatedAtMs !== null && remoteUpdatedAtMs !== null && remoteUpdatedAtMs > cloudBaseUpdatedAtMs){
+      if(dataFingerprint(previous?.data ?? null) !== expectedData){
         throw new Error("REMOTE_DATA_CHANGED");
       }
       const payload = {
         schema: 2,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        data: DATA
+        data: snapshot
       };
       if(previous?.data){
         payload.previousData = previous.data;
         payload.previousUpdatedAt = previous.updatedAt || null;
       }
-      transaction.set(ref, payload, { merge:true });
+      transaction.set(ref, payload, { mergeFields:Object.keys(payload) });
     });
-    const committed = await ref.get();
-    cloudBaseUpdatedAtMs = committed.data()?.updatedAt?.toMillis?.() ?? Date.now();
+    if(currentUser.uid !== savingUid) return;
+    cloudBaseData = dataFingerprint(snapshot);
+    if(dataFingerprint(DATA) !== cloudBaseData){
+      localStorage.setItem(savingKey + "_pending", JSON.stringify({ base:cloudBaseData }));
+      scheduleCloudSave();
+      return;
+    }
+    localStorage.removeItem(savingKey + "_pending");
     setSaveState("Sincronizzato", "saved");
   }catch(e){
+    if(currentUser.uid !== savingUid) return;
     console.warn("Cloud save failed:", e);
     setSaveState(e?.message === "REMOTE_DATA_CHANGED" ? "Dati aggiornati altrove: ricarica" : "Errore sincronizzazione", "error");
+  }finally{
+    cloudWriteInFlight = false;
   }
 }
 
@@ -161,7 +200,22 @@ async function syncFromCloud(){
     setSaveState("Errore caricamento dati", "error");
     return;
   }
+  const remoteData = dataFingerprint(cloud.found ? cloud.data : null);
+  if(hasPendingData()){
+    let pending;
+    try{ pending = JSON.parse(localStorage.getItem(pendingKey())); }catch(e){}
+    if(!pending || pending.base !== remoteData){
+      setSaveState("Conflitto: copia locale conservata", "error");
+      return;
+    }
+    cloudBaseData = remoteData;
+    cloudHydrated = true;
+    await saveCloudNow();
+    return;
+  }
+  cloudBaseData = remoteData;
   if(cloud.found){
+    preserveRecoveryCopy(DATA,"Prima del caricamento cloud");
     DATA = cloud.data;
     cloudBaseUpdatedAtMs = cloud.updatedAtMs;
     // persist locally for offline use
@@ -171,6 +225,7 @@ async function syncFromCloud(){
     cloudBaseUpdatedAtMs = null;
     cloudHydrated = true;
     await saveCloudNow();
+    return;
   }
   cloudHydrated = true;
   rebuildYearMonthSelectors();
@@ -197,6 +252,14 @@ function loadData(){
   }
 }
 function saveData(){
+  const before = localStorage.getItem(storeKey());
+  if(before){
+    try{ preserveRecoveryCopy(JSON.parse(before),"Prima della modifica"); }
+    catch(e){ setSaveState("Spazio insufficiente per il backup", "error"); return; }
+  }
+  if(isAuthed() && !hasPendingData()){
+    localStorage.setItem(pendingKey(), JSON.stringify({ base:cloudBaseData }));
+  }
   localStorage.setItem(storeKey(), JSON.stringify(DATA));
   if(isAuthed()){
     if(cloudHydrated) scheduleCloudSave();
@@ -2014,6 +2077,7 @@ function setUser(uid, name){
   if(currentUser.uid !== nextUid){
     cloudHydrated = false;
     cloudBaseUpdatedAtMs = null;
+    cloudBaseData = null;
     clearTimeout(cloudSaveTimer);
   }
   currentUser = { uid: nextUid, name: name || "Guest" };

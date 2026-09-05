@@ -17,6 +17,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: node tests/kpi-core.test.js
+      - run: node --test tests/sync.test.js
       - run: node tests/security-check.js
       - run: node --check app.js
       - run: node --check sw.js

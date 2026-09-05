@@ -1,11 +1,12 @@
-const CACHE_NAME = "nello-kpi-v7";
+const CACHE_NAME = "nello-kpi-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=7",
-  "./kpi-core.js?v=7",
-  "./app.js?v=7",
-  "./manifest.webmanifest?v=7",
+  "./style.css?v=8",
+  "./kpi-core.js?v=8",
+  "./app.js?v=8",
+  "./recovery.js?v=8",
+  "./manifest.webmanifest?v=8",
   "./app-icon-192.png",
   "./app-icon-512.png",
   "./nello_ok.webp",
