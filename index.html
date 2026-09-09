@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Nello KPI" />
 <title>Nello KPI</title>
 
-<link rel="stylesheet" href="style.css?v=9" />
+<link rel="stylesheet" href="style.css?v=10" />
 <link rel="manifest" href="manifest.webmanifest?v=8" />
 <link rel="icon" type="image/png" sizes="192x192" href="app-icon-192.png" />
 <link rel="apple-touch-icon" href="app-icon-192.png" />
@@ -372,48 +372,36 @@
   </div>
 </div>
 
-<!-- LOGIN MODAL -->
-<div class="modalOverlay" id="modalOverlay">
-  <div class="modal">
-    <h2>Login</h2>
-    <p>Accedi con social o email.</p>
-
-    <div class="grid1">
-      <button class="btnTiny" id="btnGoogle" type="button">Accedi con Google</button>
+<!-- Email-only authentication -->
+<dialog class="modalOverlay" id="modalOverlay" aria-labelledby="authTitle" aria-describedby="authSubtitle">
+  <div class="modal authCard">
+    <button class="authClose" id="btnCloseModal" type="button" aria-label="Chiudi accesso">×</button>
+    <div class="authBrand"><img src="app-icon-192.png" width="40" height="40" alt=""><span>NELLO KPI</span></div>
+    <h2 id="authTitle">Bentornato</h2>
+    <p id="authSubtitle">Accedi per ritrovare il tuo storico e continuare da dove eri rimasto.</p>
+    <div class="authModes" role="group" aria-label="Tipo di accesso">
+      <button type="button" class="active" data-auth-mode="login" aria-pressed="true">Accedi</button>
+      <button type="button" data-auth-mode="signup" aria-pressed="false">Crea account</button>
     </div>
-
-    <hr class="sep" />
-
-    <div class="section" style="padding:12px; margin:0; border-radius:18px;">
-      <p class="sectionTitle" style="margin-bottom:10px;">Email</p>
-      <div>
-        <label>Email</label>
-        <input id="emailInput" type="email" placeholder="nome@email.it" autocomplete="email">
+    <form id="authForm">
+      <label for="emailInput">Email</label>
+      <input id="emailInput" type="email" placeholder="nome@email.it" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" required>
+      <label for="passInput">Password</label>
+      <div class="authPassword">
+        <input id="passInput" type="password" placeholder="La tua password" autocomplete="current-password" required>
+        <button type="button" id="togglePassword" aria-controls="passInput" aria-pressed="false">Mostra</button>
       </div>
-      <div style="margin-top:10px;">
-        <label>Password</label>
-        <input id="passInput" type="password" placeholder="••••••••" autocomplete="current-password">
+      <div id="confirmPassWrap" hidden>
+        <label for="confirmPassInput">Conferma password</label>
+        <input id="confirmPassInput" type="password" placeholder="Ripeti la password" autocomplete="new-password">
       </div>
-
-      <div class="grid2">
-        <button class="btnTiny" id="btnEmailLogin" type="button">Entra</button>
-        <button class="btnTiny" id="btnEmailSignup" type="button">Registrati</button>
-      </div>
-
-      <div class="grid2" style="margin-top:10px;">
-        <button class="btnTiny" id="btnResetPass" type="button">Reset password</button>
-        <button class="btnTiny hidden" id="btnResendVerification" type="button">Reinvia conferma</button>
-        <button class="btnTiny" id="btnLogout" type="button">Logout</button>
-      </div>
-    </div>
-
-    <div class="grid1" style="margin-top:12px;">
-      <button class="btnTiny" id="btnCloseModal" type="button">Chiudi</button>
-    </div>
-
-    <div class="error" id="loginError"></div>
+      <p id="signupNote" class="authNote" hidden>Usa almeno 6 caratteri e conserva la password: il recupero via email non è disponibile.</p>
+      <div class="error" id="loginError" role="alert"></div>
+      <button class="authSubmit" id="authSubmit" type="submit">Accedi</button>
+    </form>
+    <p class="authFooter">Il tuo andamento, sempre con te.</p>
   </div>
-</div>
+</dialog>
 
 <div id="welcomeToast" class="welcome hidden" aria-live="polite"><span id="welcomeName"></span></div>
 
@@ -425,7 +413,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 
 <script src="kpi-core.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=10"></script>
 <script src="recovery.js?v=8"></script>
 </body>
 </html>

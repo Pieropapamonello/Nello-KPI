@@ -33,7 +33,7 @@ with sync_playwright() as p:
             chart = page.locator(".trendCard").bounding_box()
             assert chart["x"] > summary["x"] + summary["width"]
         page.get_by_role("button", name="Backup e recupero", exact=True).click()
-        assert page.locator("dialog").is_visible()
+        assert page.locator(".recoveryDialog").is_visible()
         page.locator(".recoveryClose").click()
         page.evaluate("preserveRecoveryCopy(DATA,'Browser test'); DATA.years[nowYear()].months['09'].channels.phone.monthly.yes=99;saveData()")
         page.get_by_role("button", name="Backup e recupero", exact=True).click()

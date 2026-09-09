@@ -390,17 +390,11 @@ const histError = document.getElementById("histError");
 
 const modalOverlay = document.getElementById("modalOverlay");
 const btnCloseModal = document.getElementById("btnCloseModal");
-const btnGoogle = document.getElementById("btnGoogle");
 
-const btnLogout = document.getElementById("btnLogout");
-const btnResendVerification = document.getElementById("btnResendVerification");
 const loginError = document.getElementById("loginError");
 
 const emailInput = document.getElementById("emailInput");
 const passInput  = document.getElementById("passInput");
-const btnEmailLogin  = document.getElementById("btnEmailLogin");
-const btnEmailSignup = document.getElementById("btnEmailSignup");
-const btnResetPass   = document.getElementById("btnResetPass");
 const installAppBtn = document.getElementById("installAppBtn");
 const retrySyncBtn = document.getElementById("retrySyncBtn");
 if(retrySyncBtn) retrySyncBtn.addEventListener("click", ()=>cloudHydrated ? saveCloudNow() : syncFromCloud());
@@ -713,9 +707,14 @@ const mobileDockEl=document.querySelector(".mobileDock");
 const mobileDockQuery=window.matchMedia("(max-width: 600px)");
 function syncMobileDockVisibility(){
   if(mobileDockEl) mobileDockEl.classList.toggle("hidden",!mobileDockQuery.matches);
+  const height=mobileDockQuery.matches && mobileDockEl ? Math.ceil(mobileDockEl.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty("--mobile-dock-height",`${height}px`);
 }
 syncMobileDockVisibility();
 mobileDockQuery.addEventListener?.("change",syncMobileDockVisibility);
+if(mobileDockEl && typeof ResizeObserver!=="undefined"){
+  new ResizeObserver(syncMobileDockVisibility).observe(mobileDockEl);
+}
 document.querySelectorAll("[data-mobile-view]").forEach(button=>{
   button.addEventListener("click", ()=>{
     const view=button.dataset.mobileView;
@@ -2051,12 +2050,23 @@ histSave.addEventListener("click", ()=>{
    LOGIN modal helpers
 ========================================================= */
 function showModal(){
+  if(authBusy) return;
+  passInput.type="password";
+  document.getElementById("togglePassword").textContent="Mostra";
+  document.getElementById("togglePassword").setAttribute("aria-pressed","false");
   loginError.style.display="none";
   loginError.textContent="";
-  modalOverlay.style.display="flex";
+  setAuthMode("login");
+  modalOverlay.showModal();
+  emailInput.focus();
 }
 function hideModal(){
-  modalOverlay.style.display="none";
+  modalOverlay.close();
+  passInput.value="";
+  document.getElementById("confirmPassInput").value="";
+  passInput.type="password";
+  document.getElementById("togglePassword").textContent="Mostra";
+  loginBtn.focus();
   updateMobileDock(viewStats.classList.contains("hidden") ? "input" : "stats");
 }
 
@@ -2082,7 +2092,7 @@ function setUser(uid, name){
   }
   currentUser = { uid: nextUid, name: name || "Guest" };
   userLine.textContent = currentUser.name;
-  loginBtn.textContent = (currentUser.uid==="guest") ? "Login" : "Logout";
+  loginBtn.textContent = (currentUser.uid==="guest") ? "Accedi" : "Esci";
 
   loadData();
   rebuildYearMonthSelectors();
@@ -2097,118 +2107,75 @@ function showAuthErr(msg){
   loginError.style.display = "block";
 }
 
-function mapAuthError(e){
-  const code = (e && e.code) ? String(e.code) : "";
-  if(code.includes("auth/unauthorized-domain")) return "Dominio non autorizzato su Firebase (Authorized domains).";
-  if(code.includes("auth/popup-blocked")) return "Popup bloccato: consenti popup o riprova.";
-  if(code.includes("auth/popup-closed-by-user")) return "Popup chiuso: riprova.";
-  if(code.includes("auth/invalid-email")) return "Email non valida.";
-  if(code.includes("auth/user-not-found")) return "Utente non trovato. Premi Registrati.";
-  if(code.includes("auth/wrong-password")) return "Password errata.";
-  if(code.includes("auth/email-already-in-use")) return "Email già registrata: usa Entra.";
-  if(code.includes("auth/weak-password")) return "Password troppo debole (min 6 caratteri).";
-  if(code.includes("auth/too-many-requests")) return "Troppi tentativi. Riprova più tardi.";
-  return "Operazione non riuscita. Controlla Firebase e riprova.";
-}
-
-async function signInWith(provider){
-  try{
-    await auth.signInWithPopup(provider);
-  }catch(e){
-    try{
-      await auth.signInWithRedirect(provider);
-    }catch(e2){
-      showAuthErr(mapAuthError(e2));
-    }
-  }
-}
-
-btnGoogle.addEventListener("click", async ()=>{ tick(); await signInWith(new firebase.auth.GoogleAuthProvider()); });
-
-btnEmailLogin.addEventListener("click", async ()=>{
-  tick();
-  const email = (emailInput.value || "").trim();
-  const pass  = passInput.value || "";
-  if(!email || !pass) return showAuthErr("Inserisci email e password.");
-  try{
-    await auth.signInWithEmailAndPassword(email, pass);
-  }catch(e){
-    showAuthErr(mapAuthError(e));
-  }
-});
-
-btnEmailSignup.addEventListener("click", async ()=>{
-  tick();
-  const email = (emailInput.value || "").trim();
-  const pass  = passInput.value || "";
-  if(!email || !pass) return showAuthErr("Inserisci email e password.");
-  try{
-    const uc = await auth.createUserWithEmailAndPassword(email, pass);
-    // Try to send verification email
-    try{
-      if(uc && uc.user && !uc.user.emailVerified){
-        await uc.user.sendEmailVerification();
-        loginError.style.display = "block";
-        loginError.style.color = "#a7ffcf";
-        loginError.textContent = "Email di conferma inviata. Controlla la posta e conferma.";
-        setTimeout(()=>{ loginError.style.color = "#ff9a9a"; }, 3000);
-      }
-    }catch(er){
-      console.warn('Errore invio email verifica', er);
-    }
-    hideModal();
-  }catch(e){
-    showAuthErr(mapAuthError(e));
-  }
-});
-
-btnResetPass.addEventListener("click", async ()=>{
-  tick();
-  const email = (emailInput.value || "").trim();
-  if(!email) return showAuthErr("Inserisci l'email per il reset password.");
-  try{
-    await auth.sendPasswordResetEmail(email);
-    loginError.style.display = "block";
-    loginError.style.color = "#a7ffcf";
-    loginError.textContent = "Email di reset inviata. Controlla la posta.";
-    setTimeout(()=>{ loginError.style.color = "#ff9a9a"; }, 1500);
-  }catch(e){
-    showAuthErr(mapAuthError(e));
-  }
-});
-
-// Reinvia email di conferma se l'utente non ha ancora verificato l'email
-if(btnResendVerification){
-  btnResendVerification.addEventListener('click', async ()=>{
-    tick();
-    const user = auth.currentUser;
-    if(!user) return showAuthErr("Nessun utente loggato.");
-    try{
-      if(user.emailVerified){
-        loginError.style.display = "block";
-        loginError.style.color = "#a7ffcf";
-        loginError.textContent = "Email già verificata.";
-        setTimeout(()=>{ loginError.style.color = "#ff9a9a"; }, 1500);
-        return;
-      }
-      await user.sendEmailVerification();
-      loginError.style.display = "block";
-      loginError.style.color = "#a7ffcf";
-      loginError.textContent = "Email di conferma reinviata. Controlla la posta.";
-      setTimeout(()=>{ loginError.style.color = "#ff9a9a"; }, 3000);
-    }catch(e){
-      showAuthErr(mapAuthError(e));
-    }
+let authMode = "login";
+let authBusy = false;
+const authForm = document.getElementById("authForm");
+const authSubmit = document.getElementById("authSubmit");
+const confirmPassInput = document.getElementById("confirmPassInput");
+function setAuthMode(mode){
+  authMode=mode;
+  const signup=mode==="signup";
+  document.getElementById("authTitle").textContent=signup?"Crea il tuo account":"Bentornato";
+  document.getElementById("authSubtitle").textContent=signup?"Un account per ritrovare i tuoi KPI su tutti i dispositivi.":"Accedi per ritrovare il tuo storico e continuare da dove eri rimasto.";
+  document.getElementById("confirmPassWrap").hidden=!signup;
+  document.getElementById("signupNote").hidden=!signup;
+  confirmPassInput.required=signup;
+  passInput.autocomplete=signup?"new-password":"current-password";
+  if(signup) passInput.minLength=6; else passInput.removeAttribute("minlength");
+  authSubmit.textContent=signup?"Crea account":"Accedi";
+  document.querySelectorAll("[data-auth-mode]").forEach(button=>{
+    const active=button.dataset.authMode===mode;
+    button.classList.toggle("active",active);
+    button.setAttribute("aria-pressed",String(active));
   });
+  loginError.style.display="none";
 }
-
-btnLogout.addEventListener("click", async ()=>{
-  tick();
-  try{ await auth.signOut(); }catch(e){}
-  setUser("guest","Guest");
-  hideModal();
+document.querySelectorAll("[data-auth-mode]").forEach(button=>button.addEventListener("click",()=>{
+  if(!authBusy) setAuthMode(button.dataset.authMode);
+}));
+document.getElementById("togglePassword").addEventListener("click",()=>{
+  const visible=passInput.type==="password";
+  passInput.type=visible?"text":"password";
+  document.getElementById("togglePassword").textContent=visible?"Nascondi":"Mostra";
+  document.getElementById("togglePassword").setAttribute("aria-pressed",String(visible));
 });
-
+function mapAuthError(e){
+  const code=String(e?.code||"");
+  if(["auth/invalid-credential","auth/user-not-found","auth/wrong-password"].includes(code)) return "Email o password non corrette. Controlla e riprova.";
+  if(code==="auth/invalid-email") return "Inserisci un indirizzo email valido.";
+  if(code==="auth/email-already-in-use") return "Questa email ha già un account. Seleziona Accedi.";
+  if(code==="auth/weak-password") return "Scegli una password di almeno 6 caratteri.";
+  if(code==="auth/too-many-requests") return "Troppi tentativi. Attendi qualche minuto e riprova.";
+  if(code==="auth/network-request-failed") return "Connessione assente. Controlla la rete e riprova.";
+  return "Accesso non riuscito. Riprova tra poco.";
+}
+authForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(authBusy) return;
+  if(!authForm.reportValidity()) return;
+  if(authMode==="signup" && passInput.value!==confirmPassInput.value) return showAuthErr("Le due password non coincidono.");
+  if(!firebaseEnabled || !auth) return showAuthErr("Accesso temporaneamente non disponibile. Controlla la connessione e ricarica la pagina.");
+  const email=emailInput.value.trim(), password=passInput.value, mode=authMode;
+  authBusy=true;
+  authForm.setAttribute("aria-busy","true");
+  authSubmit.disabled=true;
+  document.querySelectorAll("[data-auth-mode]").forEach(button=>button.disabled=true);
+  authSubmit.textContent=mode==="signup"?"Creazione account...":"Accesso in corso...";
+  loginError.style.display="none";
+  try{
+    if(mode==="signup") await auth.createUserWithEmailAndPassword(email,password);
+    else await auth.signInWithEmailAndPassword(email,password);
+    hideModal();
+  }catch(error){ showAuthErr(mapAuthError(error)); }
+  finally{
+    authBusy=false;
+    authForm.removeAttribute("aria-busy");
+    authSubmit.disabled=false;
+    document.querySelectorAll("[data-auth-mode]").forEach(button=>button.disabled=false);
+    authSubmit.textContent=authMode==="signup"?"Crea account":"Accedi";
+  }
+});
+modalOverlay.addEventListener("cancel",()=>{passInput.value="";confirmPassInput.value="";});
 /* =========================================================
    INIT
 ========================================================= */
@@ -2248,26 +2215,11 @@ if(auth) auth.onAuthStateChanged((user)=>{
       showWelcome(name);
     }
     lastAuthUid = user.uid;
-
-    // Show or hide resend confirmation button based on email verification
-    if(btnResendVerification){
-      if(user.emailVerified){
-        btnResendVerification.classList.add('hidden');
-        loginError.style.display = 'none';
-      }else{
-        btnResendVerification.classList.remove('hidden');
-        loginError.style.display = 'block';
-        loginError.style.color = '#ffb84d';
-        loginError.textContent = 'Email non verificata. Premi Reinvia conferma.';
-      }
-    }
   }else{
     setUser("guest","Guest");
     lastAuthUid = null;
-    if(btnResendVerification) btnResendVerification.classList.add('hidden');
   }
 });
-if(auth) auth.getRedirectResult().catch(()=>{});
 
 loadData();
 init();
